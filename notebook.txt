@@ -1,0 +1,49 @@
+Diode Control Electronics
+4 diodes * 2 axis/diode * 4 bytes/axis = 32 bytes per cycle
+
+Each byte is 8 bits - first is a frame sync bit
+1. Diode Array 1 X sum (frame-sync byte) 
+2. Diode Array 1 X difference 
+3. Diode Array 1 Y sum 
+4. Diode Array 1 Y difference
+5. Diode Array 2 X sum 
+6. Diode Array 2 X difference 
+7. Diode Array 2 Y sum 
+8. Diode Array 2 Y difference
+9. Diode Array 3 X sum 
+10. Diode Array 3 X difference 
+11. Diode Array 3 Y sum 
+12. Diode Array 3 Y difference
+13. Diode Array 4 X sum 
+14. Diode Array 4 X difference 
+15. Diode Array 4 Y sum 
+16. Diode Array 4 Y difference
+
+Sum = normalization
+Difference = position
+
+Python reads each 8bit byte as an ascii char. Weird shit.
+ord() of this value returns the 
+
+
+MSB --> LSB
+
+# 10000001 == 0x81
+# 01100001 == 0x61
+
+
+ib2 ^= (1 << 7)
+
+X0000001
+01100001
+
+ib1 |= (ib2 <<7)
+
+01100001 |= (X00000010000000)
+
+X00000011100001
+
+
+
+b2=1100001
+b1=1100010
