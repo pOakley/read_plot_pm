@@ -26,6 +26,8 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
+import matplotlib.animation as animation
+
 
 import serial
 import serial.tools.list_ports as serports
@@ -39,9 +41,9 @@ import time
 class Position_data():
 
 	def __init__(self):
-		
+		'''Initialize the data'''
 		self.initialize_data()
-			
+		self.connect_to_usb()	
 		
 
 	def initialize_data(self):		
@@ -75,7 +77,34 @@ class Position_data():
 		self.valuearray = []
 
 
+	def connect_to_usb(self):
+		'''Connect to USB feed'''
+	
+		list_of_usb_ports = serports.comports()
+		print 'Possible USB ports = '
+		print list_of_usb_ports
+		#Replace above with command line or GUI option menu
+		
+		self.port = '/dev/tty.usbserial-FTT3QDXK'
+		self.baudrate = 115200
+		self.parity = 'N'
+		self.rtscts = False
+		self.xonxoff = False
+		self.ser = serial.Serial(self.port, self.baudrate, parity=self.parity, rtscts=self.rtscts, xonxoff=self.xonxoff, timeout=1)
+		
+		print 'Setting up USB connection:'
+		print 'Port: ' + self.port
+		print 'Baudrate: ' + str(self.baudrate)
+		print 'Parity: ' + self.parity
+		print 'RTSCTS: ' + str(self.rtscts)
+		print 'XONXOFF: ' + str(self.xonxoff)
+
+
+	
 	def calculate_positions(self):
+	
+
+		
 		print self.valuearray
 		'''Calculate laser spot position from diode values'''
 		#Calculate spot positions
@@ -88,6 +117,7 @@ class Position_data():
 		self.x4_position = self.valuearray[13] / self.valuearray[12]
 		self.y4_position = self.valuearray[15] / self.valuearray[14]
 	
+		self.position = [self.x1_position,self.y1_position,self.x2_position,self.y2_position,self.x3_position,self.y3_position,self.x4_position,self.y4_position]
 	
 	def convert_from_twos_complement(self,value):
 		'''Convert from twos complement'''
@@ -111,7 +141,7 @@ class Position_data():
 		while sync_attempt < 100:
 		
 			#Read in a byte (will be an ascii character)
-			sync_test_byte = ser.read()
+			sync_test_byte = self.ser.read(1)
 			
 			#Convert byte to integer (needed to perform operations on)
 			sync_test_int = ord(sync_test_byte)
@@ -129,13 +159,44 @@ class Position_data():
 		return 0;
 
 	
-	def read_cycle(self, ser):
+	def read_cycle(self):
+		'''Reads a full 32 byte cycle'''
+		sync_attempt=0
+		
+		self.cycle_byte = []
+		self.cycle_byte_to_int = []
+		
+		self.cycle_byte.append(self.sync_feed(sync_attempt))
+		self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))
+		
+		if self.cycle_byte_to_int[0] < 128:
+			print "Failed to Sync. Exiting"
+			#return 0;
+			sys.exit()
+		
+		self.read_31_bytes()
+	
+		self.valuearray = self.cycle_valuearray
+		self.bit15array = self.cycle_bit15array
+		self.byte = self.cycle_byte
+		self.byte_to_int = self.cycle_byte_to_int
+	
+		self.calculate_positions()
+	
+		self.print_positions()
+	
+		yield self.position
+	
+	def read_31_bytes(self):
 		print 'Attempting to read live data'
+		self.cycle_bit15array = []
+		self.cycle_valuearray = []
+		
 		for k in range(1,32):
-			self.byte.append(ser.read())
+			self.cycle_byte.append(self.ser.read(1))
 			
 			# return an integer representing the Unicode code point of the character
-			self.byte_to_int.append(ord(self.byte[k]))
+			self.cycle_byte_to_int.append(ord(self.cycle_byte[k]))
 		
 			if (k % 2 == 1):
 			
@@ -145,20 +206,21 @@ class Position_data():
 				#The data bits (B13 - B0) are arranged MSB - LSB
 	
 				#Zero the frame sync
-				desynced1 = self.byte_to_int[k-1] & ~(1 << 7)
-				desynced2 = self.byte_to_int[k]   & ~(1 << 7)
+				desynced1 = self.cycle_byte_to_int[k-1] & ~(1 << 7)
+				desynced2 = self.cycle_byte_to_int[k]   & ~(1 << 7)
 			
 				#combine the two bitarrays
-				self.bit15array.append(desynced1 | (desynced2 << 7))
+				self.cycle_bit15array.append(desynced1 | (desynced2 << 7))
 							
 				#Put the bits back together and put it into a float variable for easy division
-				self.valuearray.append(float(self.convert_from_twos_complement(self.bit15array[(k-1)/2])))
+				self.cycle_valuearray.append(float(self.convert_from_twos_complement(self.cycle_bit15array[(k-1)/2])))
 				
 
 		
 	def print_positions(self):
 		print 'Byte original bitarray bitarray bit14array valuearray'
 		for printinfo in range(32):
+			print printinfo
 			if printinfo % 2==0:
 				print self.byte[printinfo], '  ', self.byte_to_int[printinfo]
 
@@ -179,7 +241,7 @@ class Position_data():
 
 	def save_data(self):
 		'''Save the data'''
-		current_time = str(datetime.datetime.now())
+		#current_time = str(datetime.datetime.now())
 
 		#print "Saved Data: ", data_tosave_filename
 
@@ -281,79 +343,40 @@ class Position_plots():
 		#self.fig1.show()
 		
 	
-	def update_display(self, data):
+	def update_display(self, newdata):
 		'''Update the plot windows'''
-		self.update_grid(data)
-		self.update_diodes(data)
+		#self.update_grid(data)
+		self.update_diodes(newdata)
 		
 	def update_grid(self, data):
 		'''Update the pixel grid'''
 
 	
-	def update_diodes(self, data):
+	def update_diodes(self, newdata):
 		'''Update the diode maps'''
+		print newdata
 
 
 
-
+	
 
 if __name__ == "__main__":
 	#==========================================Setup Parameters
 	#live_data = 1 for live feed off the RS422 signal from the control box
 	#live_data = 0 for analyzing stored data
-	live_data = 1
-	skip = 1
-	filename='/Users/Oakley/Documents/Work/microx/position_monitor/testing/test_liveread.txt'
-	
-	#==========================================Set up the Connection to USB
-	list_of_usb_ports = serports.comports()
-	print 'Possible USB ports = '
-	print list_of_usb_ports
-	#Replace above with command line or GUI option menu
-	
-	port = '/dev/tty.usbserial-FTT3QDXK'
-	baudrate = 115200
-	parity = 'N'
-	rtscts = False
-	xonxoff = False
-	ser = serial.Serial(port, baudrate, parity=parity, rtscts=rtscts, xonxoff=xonxoff, timeout=1)
-	
-	print 'Setting up USB connection:'
-	print 'Port: ' + port
-	print 'Baudrate: ' + str(baudrate)
-	print 'Parity: ' + parity
-	print 'RTSCTS: ' + str(rtscts)
-	print 'XONXOFF: ' + str(xonxoff)
+	skip = 1	
 	
 	data    = Position_data()
 	display = Position_plots()
 	
 	sync_attempt = 0
 	read_cycle = 1
-	
-	for read_cycle in range(1):
-		
-		data.byte.append(data.sync_feed(sync_attempt))
-		data.byte_to_int.append(ord(data.byte[0]))
-		
-		if data.byte_to_int[0] < 128:
-			print "Failed to Sync. Exiting"
-			#return 0;
-			sys.exit()
-		
-		data.read_cycle(ser)
-	
-		data.calculate_positions()
-	
-		data.print_positions()
-	
-		#display.update_display(data)
-	
-		print "sleeping"
-		#time.sleep(1)
-		print "waking"
-		print read_cycle
-	ser.close()
+
+	ani = animation.FuncAnimation(display.fig1, display.update_display, data.read_cycle, interval=10, blit=False)
+
+	plt.show()
+
+	#ser.close()
 	
 	#plt.show()
 		
