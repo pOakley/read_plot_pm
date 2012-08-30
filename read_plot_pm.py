@@ -24,6 +24,8 @@
 import numpy as np
 #from time import sleep
 
+import random
+
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 import matplotlib.animation as animation
@@ -40,10 +42,12 @@ import time
 
 class Position_data():
 
-	def __init__(self):
+	def __init__(self, fake_data=False):
 		'''Initialize the data'''
+		self.fake_data = fake_data
 		self.initialize_data()
-		self.connect_to_usb()	
+		if (self.fake_data == False):
+			self.connect_to_usb()	
 		
 
 	def initialize_data(self):		
@@ -102,10 +106,6 @@ class Position_data():
 
 	
 	def calculate_positions(self):
-	
-
-		
-		print self.valuearray
 		'''Calculate laser spot position from diode values'''
 		#Calculate spot positions
 		self.x1_position = self.valuearray[1] / self.valuearray[0]
@@ -138,6 +138,7 @@ class Position_data():
 		
 		
 	def sync_feed(self,sync_attempt):
+		'''Search for the frame sync byte'''
 		while sync_attempt < 100:
 		
 			#Read in a byte (will be an ascii character)
@@ -166,28 +167,33 @@ class Position_data():
 		self.cycle_byte = []
 		self.cycle_byte_to_int = []
 		
-		self.cycle_byte.append(self.sync_feed(sync_attempt))
-		self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))
+		if (self.fake_data == False):
+			self.cycle_byte.append(self.sync_feed(sync_attempt))
+			self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))
+			
+			if self.cycle_byte_to_int[0] < 128:
+				print "Failed to Sync. Exiting"
+				#return 0;
+				sys.exit()
+			
+			self.read_31_bytes()
 		
-		if self.cycle_byte_to_int[0] < 128:
-			print "Failed to Sync. Exiting"
-			#return 0;
-			sys.exit()
+			self.valuearray = self.cycle_valuearray
+			self.bit15array = self.cycle_bit15array
+			self.byte = self.cycle_byte
+			self.byte_to_int = self.cycle_byte_to_int
 		
-		self.read_31_bytes()
-	
-		self.valuearray = self.cycle_valuearray
-		self.bit15array = self.cycle_bit15array
-		self.byte = self.cycle_byte
-		self.byte_to_int = self.cycle_byte_to_int
-	
-		self.calculate_positions()
-	
-		self.print_positions()
+			self.calculate_positions()
+		
+			self.print_positions()
+		else:
+			r = random.uniform(-3,3)
+			self.position = np.ones(8)*r
 	
 		yield self.position
 	
 	def read_31_bytes(self):
+		'''Read the next 31 bytes'''
 		print 'Attempting to read live data'
 		self.cycle_bit15array = []
 		self.cycle_valuearray = []
@@ -218,6 +224,7 @@ class Position_data():
 
 		
 	def print_positions(self):
+		'''Print out all the variables'''
 		print 'Byte original bitarray bitarray bit14array valuearray'
 		for printinfo in range(32):
 			print printinfo
@@ -251,6 +258,7 @@ class Position_data():
 class Position_plots():
 	
 	def __init__(self):
+		'''Initialize Class'''
 		#self.setup_grid()
 		self.setup_diodes()
 		
@@ -354,7 +362,10 @@ class Position_plots():
 	
 	def update_diodes(self, newdata):
 		'''Update the diode maps'''
-		print newdata
+		self.diode1.plot(newdata[0],newdata[1],'k.')
+		self.diode2.plot(newdata[2],newdata[3],'k.')
+		self.diode3.plot(newdata[4],newdata[5],'k.')
+		self.diode4.plot(newdata[6],newdata[7],'k.')
 
 
 
@@ -362,21 +373,20 @@ class Position_plots():
 
 if __name__ == "__main__":
 	#==========================================Setup Parameters
-	#live_data = 1 for live feed off the RS422 signal from the control box
-	#live_data = 0 for analyzing stored data
-	skip = 1	
 	
-	data    = Position_data()
+	#Create class instances
+	data    = Position_data(fake_data=False)
 	display = Position_plots()
 	
 	sync_attempt = 0
 	read_cycle = 1
 
-	ani = animation.FuncAnimation(display.fig1, display.update_display, data.read_cycle, interval=10, blit=False)
+	#Using the Position Plots Class fig1, get data from the Position Data class (read_cycle function)
+	#and display it using the Position Plots class (update_display function)
+	#Do this every 2 milliseconds
+	ani = animation.FuncAnimation(display.fig1, display.update_display, data.read_cycle, interval=2, blit=False)
 
+	#Animation doesn't happen without this
 	plt.show()
 
 	#ser.close()
-	
-	#plt.show()
-		
