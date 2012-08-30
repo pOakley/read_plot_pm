@@ -87,6 +87,7 @@ y4_norm = []
 
 #==========================================Read Existing data
 filename = '/Users/Oakley/Documents/Work/microx/position_monitor/3-23-2012/pm1.txt'
+filename = '/Users/Oakley/Documents/Work/microx/position_monitor/wallops/pm-random-thrust-warm.txt'
 file_exist = os.path.exists(filename)
 
 #Exit program if given filename doesn't exists
@@ -174,7 +175,7 @@ for k in range(np.size(x1_position)):
 		diode4.set_ylim([-5,5])
 
 	
-	fig2.savefig('/Users/Oakley/Documents/Work/microx/position_monitor/3-23-2012/movie_figures/'+str(k)+'.png',format='png')
+	#fig2.savefig('/Users/Oakley/Documents/Work/microx/position_monitor/3-23-2012/movie_figures/'+str(k)+'.png',format='png')
 	
 
 
@@ -185,8 +186,8 @@ for k in range(np.size(x1_position)):
 
 #==========================================Determine the filename to save to
 filename_base = filename[:-4]
-diode_filename = filename_base + '_diode_figure'
-detector_filename = filename_base + '_detector_figure'
+diode_filename = filename_base + '_diode_figure.pdf'
+detector_filename = filename_base + '_detector_figure.pdf'
 
 print "Saving Figure: ", diode_filename
 print "Saving Figure: ", detector_filename
