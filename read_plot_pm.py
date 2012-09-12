@@ -83,7 +83,7 @@ class Position_data():
 
         self.x1_position = []
         self.y1_position = []
-        self.position = []
+        self.position = np.zeros((1,8))
 
 
     def connect_to_usb(self):
@@ -94,7 +94,8 @@ class Position_data():
         print list_of_usb_ports
         #Replace above with command line or GUI option menu
 
-        self.port = '/dev/tty.usbserial-FTT3QDXK'
+        self.port = '/dev/tty.usbserial-FTT3QDXK'	#Small PCB Converter
+        self.port = '/dev/tty.usbserial-FTT31FFA'	#Bigger Converter
         #self.port = '/dev/tty.usbmodem411'
         self.baudrate = 115200
         self.parity = 'N'
@@ -115,8 +116,8 @@ class Position_data():
     def calculate_positions(self):
         '''Calculate laser spot position from diode values'''
         #Calculate spot positions
-        self.x1_position.extend(self.valuearray[1] / self.valuearray[0])
-        self.y1_position.extend(self.valuearray[3] / self.valuearray[2])
+        self.x1_position = self.valuearray[1] / self.valuearray[0]
+        self.y1_position = self.valuearray[3] / self.valuearray[2]
         self.x2_position = self.valuearray[5] / self.valuearray[4]
         self.y2_position = self.valuearray[7] / self.valuearray[6]
         self.x3_position = self.valuearray[9] / self.valuearray[8]
@@ -124,7 +125,12 @@ class Position_data():
         self.x4_position = self.valuearray[13] / self.valuearray[12]
         self.y4_position = self.valuearray[15] / self.valuearray[14]
 
-        self.position = [self.x1_position,self.y1_position]#,self.x2_position,self.y2_position,self.x3_position,self.y3_position,self.x4_position,self.y4_position]
+	position_list = [self.x1_position,self.y1_position,self.x2_position,self.y2_position,self.x3_position,self.y3_position,self.x4_position,self.y4_position]
+
+	if np.size(self.position) == 0:
+		self.position[0,:] = position_list
+        else:
+        	self.position = np.vstack([self.position,position_list])
 
     def convert_from_twos_complement(self,value):
         '''Convert from twos complement'''
@@ -153,13 +159,13 @@ class Position_data():
 
             #Convert byte to integer (needed to perform operations on)
             sync_test_int = ord(sync_test_byte)
-            print sync_test_int
+            #print sync_test_int
 
             #Check to see if the first bit is a 1
             #This happens when the overall integer value is >= 128
 
             if sync_test_int >= 128:
-                print 'Sync in: ' + str(sync_attempt) + ' attempts'
+                #print 'Sync in: ' + str(sync_attempt) + ' attempts'
                 return sync_test_byte
 
             sync_attempt += 1
@@ -200,14 +206,17 @@ class Position_data():
             r = random.uniform(-3,3)
             self.x1_position.append(r)
             self.y1_position.append(r)
-            self.position = np.ones(8)*r
+            if np.size(self.position) == 0:
+            	self.position[0,:] = np.ones(8)*r
+            else:
+            	self.position = np.vstack([self.position,np.ones(8)*r])
 
         yield self.position
         #yield [self.x1_position, self.y1_position]
 
     def read_31_bytes(self):
         '''Read the next 31 bytes'''
-        print 'Attempting to read live data'
+        
         self.cycle_bit15array = []
         self.cycle_valuearray = []
 
@@ -216,7 +225,7 @@ class Position_data():
 
             # return an integer representing the Unicode code point of the character
             self.cycle_byte_to_int.append(ord(self.cycle_byte[k]))
-            print ord(self.cycle_byte[k])
+            #print ord(self.cycle_byte[k])
 
             if (k % 2 == 1):
 
@@ -330,59 +339,66 @@ class Position_plots():
     def setup_diodes(self):
         '''Plot the initial diode maps'''
         self.fig1 = plt.figure()
-        self.line1 = Line2D([],[],color='r*')
+        #self.line1 = Line2D([],[],color='r*')
 
         self.diode1 = self.fig1.add_subplot(2,2,1)
-        #self.diode1.plot([],[],'k.')
+        self.diode1_plot = self.diode1.plot(0, 0,'k.')       
         self.diode1.set_xlabel('X Position [mm]')
         self.diode1.set_ylabel('X Position [mm]')
         self.diode1.set_title('Diode 1')
-        self.d_plot = self.diode1.plot(0, 0,'k.')
 
-        # self.diode2 = self.fig1.add_subplot(2,2,2)
-#       self.diode2.plot([],[],'k.')
-#       self.diode2.set_xlabel('X Position [mm]')
-#       self.diode2.set_ylabel('X Position [mm]')
-#       self.diode2.set_title('Diode 2')
-#
-#       self.diode3 = self.fig1.add_subplot(2,2,3)
-#       self.diode3.plot([],[],'k.')
-#       self.diode3.set_xlabel('X Position [mm]')
-#       self.diode3.set_ylabel('X Position [mm]')
-#       self.diode3.set_title('Diode 3')
-#
-#       self.diode4 = self.fig1.add_subplot(2,2,4)
-#       self.diode4.plot([],[],'k.')
-#       self.diode4.set_xlabel('X Position [mm]')
-#       self.diode4.set_ylabel('X Position [mm]')
-#       self.diode4.set_title('Diode 4')
-#
+        self.diode2 = self.fig1.add_subplot(2,2,2)
+        self.diode2_plot = self.diode2.plot(0, 0,'k.')	
+	self.diode2.set_xlabel('X Position [mm]')
+	self.diode2.set_ylabel('X Position [mm]')
+	self.diode2.set_title('Diode 2')
+	
+	self.diode3 = self.fig1.add_subplot(2,2,3)
+        self.diode3_plot = self.diode3.plot(0, 0,'k.')	
+	self.diode3.set_xlabel('X Position [mm]')
+	self.diode3.set_ylabel('X Position [mm]')
+	self.diode3.set_title('Diode 3')
+	
+	self.diode4 = self.fig1.add_subplot(2,2,4)
+        self.diode4_plot = self.diode4.plot(0, 0,'k.')	
+	self.diode4.set_xlabel('X Position [mm]')
+	self.diode4.set_ylabel('X Position [mm]')
+	self.diode4.set_title('Diode 4')
+
+
+
+	
+
+
         datasize=0
         if (datasize==0):
-            self.diode1.set_xlim([-5,5])
-            self.diode1.set_ylim([-5,5])
-            # self.diode2.set_xlim([-5,5])
-#           self.diode2.set_ylim([-5,5])
-#           self.diode3.set_xlim([-5,5])
-#           self.diode3.set_ylim([-5,5])
-#           self.diode4.set_xlim([-5,5])
-#           self.diode4.set_ylim([-5,5])
+		self.diode1.set_xlim([-5,5])
+		self.diode1.set_ylim([-5,5])
+		self.diode2.set_xlim([-5,5])
+		self.diode2.set_ylim([-5,5])
+		self.diode3.set_xlim([-5,5])
+		self.diode3.set_ylim([-5,5])
+		self.diode4.set_xlim([-5,5])
+		self.diode4.set_ylim([-5,5])
 
         #self.fig1.show()
-        self.diode1.figure.canvas.draw()
+#         self.diode1.figure.canvas.draw()
+#         self.diode2.figure.canvas.draw()
+#         self.diode3.figure.canvas.draw()
+#         self.diode4.figure.canvas.draw()
 
-    def update_display(self,newdata):
+    def update_display(self,data):
         '''Update the plot windows'''
         #self.update_grid(data)
         #print newdata
-        self.update_diodes(newdata)
+        self.update_diodes(data)
         #return a
 
     def update_grid(self, data):
         '''Update the pixel grid'''
 
 
-    def update_diodes(self, newdata):
+    def update_diodes(self, data):
         '''Update the diode maps'''
         self.ts = time.time()
         print(self.ts - self.ts_old)
@@ -393,9 +409,12 @@ class Position_plots():
         #print x1
         #print y1
         #self.line1.set_data(x1,y1)
-        self.x.append(newdata[0])
-        self.y.append(newdata[1])
-        self.d_plot[0].set_data(self.x, self.y)
+        #self.x.append(newdata[0])
+        #self.y.append(newdata[1])
+        self.diode1_plot[0].set_data(data[:,0], data[:,1])
+        self.diode2_plot[0].set_data(data[:,2], data[:,3])
+        self.diode3_plot[0].set_data(data[:,4], data[:,5])
+        self.diode4_plot[0].set_data(data[:,6], data[:,7])
         #self.diode1.figure.set_data(newdata[0],newdata[1])
         #self.diode1.plot(newdata[0],newdata[1],'k.')
         #self.diode2.plot(newdata[2],newdata[3],'k.')
@@ -413,7 +432,7 @@ if __name__ == "__main__":
     #==========================================Setup Parameters
 
     #Create class instances
-    data    = Position_data(fake_data=True)
+    data    = Position_data(fake_data=False)
     display = Position_plots()
 
     sync_attempt = 0
