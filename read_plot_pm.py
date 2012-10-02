@@ -21,6 +21,8 @@
 #==========================================Import necessary libraries
 #import matplotlib.pyplot as plt
 
+#python -m serial.tools.miniterm --port='/dev/tty.usbserial-FTT3QDXK' --baud=115200
+
 import numpy as np
 #from time import sleep
 
@@ -30,6 +32,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 import matplotlib.animation as animation
 from matplotlib.lines import Line2D
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
 
 import serial
@@ -95,7 +98,7 @@ class Position_data():
         #Replace above with command line or GUI option menu
 
         self.port = '/dev/tty.usbserial-FTT3QDXK'	#Small PCB Converter
-        self.port = '/dev/tty.usbserial-FTT31FFA'	#Bigger Converter
+        #self.port = '/dev/tty.usbserial-FTT31FFA'	#Bigger Converter
         #self.port = '/dev/tty.usbmodem411'
         self.baudrate = 115200
         self.parity = 'N'
@@ -127,7 +130,10 @@ class Position_data():
 
 	position_list = [self.x1_position,self.y1_position,self.x2_position,self.y2_position,self.x3_position,self.y3_position,self.x4_position,self.y4_position]
 
-	if np.size(self.position) == 0:
+	if np.size(self.position) > 80:
+	        self.position = np.zeros((1,8))
+
+	if np.size(self.position) == 8:
 		self.position[0,:] = position_list
         else:
         	self.position = np.vstack([self.position,position_list])
@@ -135,17 +141,19 @@ class Position_data():
     def convert_from_twos_complement(self,value):
         '''Convert from twos complement'''
         #Check whether the input is positive (0 first bit) or negative (1 first bit)
-        if value > 127:
+        #if value > 127:
+	if value >= (2**13):
+		#Zero the sign bit
+		#value ^= (1<<13) #was 7
+		
+		#Add 1
+		#value += 1
+		
+		#Make negative
+		#value = -value
+		value = ~(value ^ (2**14-1))		
 
-            #Zero the sign bit
-            value ^= (1<<7)
-
-            #Add 1
-            value += 1
-
-            #Make negative
-            value = -value
-
+	print value
         return value
 
 
@@ -211,7 +219,8 @@ class Position_data():
             else:
             	self.position = np.vstack([self.position,np.ones(8)*r])
 
-        yield self.position
+        return self.position
+        #yield self.position
         #yield [self.x1_position, self.y1_position]
 
     def read_31_bytes(self):
@@ -235,10 +244,15 @@ class Position_data():
                 #The data bits (B13 - B0) are arranged MSB - LSB
 
                 #Zero the frame sync
+                #(1 << 7) = 00000001 shifted 7 places to the left = 10000000 = 128
+                #Looks for common 1s between the variable and the complement of 128 (01111111)
+                #In other words the first bit is 0, and all the others are whatever they originally were
                 desynced1 = self.cycle_byte_to_int[k-1] & ~(1 << 7)
                 desynced2 = self.cycle_byte_to_int[k]   & ~(1 << 7)
 
                 #combine the two bitarrays
+                #Combines the first variable (least significant bits) with the second variable (most significant bits)
+                #Example: 1010101 | 1111111 = 11111111010101
                 self.cycle_bit15array.append(desynced1 | (desynced2 << 7))
 
                 #Put the bits back together and put it into a float variable for easy division
@@ -278,7 +292,7 @@ class Position_data():
 
 
 
-class Position_plots():
+class Position_plots(FigureCanvas):
 
     def __init__(self):
         '''Initialize Class'''
@@ -387,6 +401,9 @@ class Position_plots():
 #         self.diode3.figure.canvas.draw()
 #         self.diode4.figure.canvas.draw()
 
+	#self.draw()
+	plt.show()
+	
     def update_display(self,data):
         '''Update the plot windows'''
         #self.update_grid(data)
@@ -415,6 +432,7 @@ class Position_plots():
         self.diode2_plot[0].set_data(data[:,2], data[:,3])
         self.diode3_plot[0].set_data(data[:,4], data[:,5])
         self.diode4_plot[0].set_data(data[:,6], data[:,7])
+        #self.diode4.set_ylim([-5,random.random()*5])
         #self.diode1.figure.set_data(newdata[0],newdata[1])
         #self.diode1.plot(newdata[0],newdata[1],'k.')
         #self.diode2.plot(newdata[2],newdata[3],'k.')
@@ -432,7 +450,9 @@ if __name__ == "__main__":
     #==========================================Setup Parameters
 
     #Create class instances
-    data    = Position_data(fake_data=False)
+    plt.ion()
+    
+    data    = Position_data(fake_data=True)
     display = Position_plots()
 
     sync_attempt = 0
@@ -440,12 +460,16 @@ if __name__ == "__main__":
 
     #Using the Position Plots Class fig1, get data from the Position Data class (read_cycle function)
     #and display it using the Position Plots class (update_display function)
-    #Do this every 2 milliseconds
-    ani = animation.FuncAnimation(display.fig1, display.update_display, data.read_cycle, interval=1, blit=False)
+    #Do this every X milliseconds
+    #ani = animation.FuncAnimation(display.fig1, display.update_display, data.read_cycle, interval=1000, blit=True)
 
-
+    #plt.draw()
+    print 'poop'
+    for read_times in range(40):
+    	display.update_display(data.read_cycle())
+    	plt.draw()
 
     #Animation doesn't happen without this
-    plt.show()
+        
 
     #ser.close()
