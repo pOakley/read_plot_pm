@@ -44,6 +44,9 @@ import sys
 import datetime
 import time
 
+from PyQt4 import QtCore, QtGui
+import sys
+
 class Position_data():
 
     def __init__(self, fake_data=False):
@@ -153,7 +156,7 @@ class Position_data():
 		#value = -value
 		value = ~(value ^ (2**14-1))		
 
-	print value
+	#print value
         return value
 
 
@@ -209,7 +212,7 @@ class Position_data():
 
             self.calculate_positions()
 
-            #self.print_positions()
+            self.print_positions()
         else:
             r = random.uniform(-3,3)
             self.x1_position.append(r)
@@ -292,184 +295,329 @@ class Position_data():
 
 
 
-class Position_plots(FigureCanvas):
+class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
-    def __init__(self):
-        '''Initialize Class'''
-        #self.setup_grid()
-        self.ts_old = time.time()
-        self.ts = time.time()
-        self.setup_diodes()
-        self.x = []
-        self.y = []
+	def __init__(self):
+		'''Initialize the GUI Window'''
+		self.ts_old = time.time()
+		self.ts = time.time()
+		self.main_gui = QtGui.QMainWindow()
+		self.setupUi(self.main_gui)
+		self.setup_diodes()
+		self.x = []
+		self.y = []
+		self.retranslateUi(self.main_gui)
+		QtCore.QMetaObject.connectSlotsByName(self.main_gui)
+		#self.main_gui.show()		
+        
+	def setupUi(self, MainWindow):
+		MainWindow.setObjectName(_fromUtf8("MainWindow"))
+		MainWindow.resize(798, 780)
+		self.centralwidget = QtGui.QWidget(MainWindow)
+		self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
+		self.diode_plot_widget = QtGui.QWidget(self.centralwidget)
+		self.diode_plot_widget.setGeometry(QtCore.QRect(29, 39, 471, 471))
+		self.diode_plot_widget.setObjectName(_fromUtf8("diode_plot_widget"))
+		self.pixel_plot_widget = QtGui.QWidget(self.centralwidget)
+		self.pixel_plot_widget.setGeometry(QtCore.QRect(29, 539, 471, 191))
+		self.pixel_plot_widget.setObjectName(_fromUtf8("pixel_plot_widget"))
+		self.widget = QtGui.QWidget(self.centralwidget)
+		self.widget.setGeometry(QtCore.QRect(530, 40, 241, 691))
+		self.widget.setObjectName(_fromUtf8("widget"))
+		self.verticalLayout_2 = QtGui.QVBoxLayout(self.widget)
+		self.verticalLayout_2.setMargin(0)
+		self.verticalLayout_2.setObjectName(_fromUtf8("verticalLayout_2"))
+		self.datamode_label = QtGui.QLabel(self.widget)
+		font = QtGui.QFont()
+		font.setPointSize(18)
+		font.setBold(True)
+		font.setWeight(75)
+		self.datamode_label.setFont(font)
+		self.datamode_label.setObjectName(_fromUtf8("datamode_label"))
+		self.verticalLayout_2.addWidget(self.datamode_label)
+		self.verticalLayout = QtGui.QVBoxLayout()
+		self.verticalLayout.setSpacing(15)
+		self.verticalLayout.setSizeConstraint(QtGui.QLayout.SetDefaultConstraint)
+		self.verticalLayout.setObjectName(_fromUtf8("verticalLayout"))
+		self.livedata_button = QtGui.QRadioButton(self.widget)
+		self.livedata_button.setObjectName(_fromUtf8("livedata_button"))
+		self.verticalLayout.addWidget(self.livedata_button)
+		self.existingdata_button = QtGui.QRadioButton(self.widget)
+		self.existingdata_button.setObjectName(_fromUtf8("existingdata_button"))
+		self.verticalLayout.addWidget(self.existingdata_button)
+		self.fakedata_button = QtGui.QRadioButton(self.widget)
+		self.fakedata_button.setObjectName(_fromUtf8("fakedata_button"))
+		self.verticalLayout.addWidget(self.fakedata_button)
+		self.verticalLayout_2.addLayout(self.verticalLayout)
+		self.line = QtGui.QFrame(self.widget)
+		self.line.setFrameShape(QtGui.QFrame.HLine)
+		self.line.setFrameShadow(QtGui.QFrame.Sunken)
+		self.line.setObjectName(_fromUtf8("line"))
+		self.verticalLayout_2.addWidget(self.line)
+		self.recorddata_label = QtGui.QLabel(self.widget)
+		font = QtGui.QFont()
+		font.setPointSize(18)
+		font.setBold(True)
+		font.setWeight(75)
+		self.recorddata_label.setFont(font)
+		self.recorddata_label.setObjectName(_fromUtf8("recorddata_label"))
+		self.verticalLayout_2.addWidget(self.recorddata_label)
+		self.horizontalLayout = QtGui.QHBoxLayout()
+		self.horizontalLayout.setObjectName(_fromUtf8("horizontalLayout"))
+		self.pause_button = QtGui.QToolButton(self.widget)
+		self.pause_button.setText(_fromUtf8(""))
+		icon = QtGui.QIcon()
+		icon.addPixmap(QtGui.QPixmap(_fromUtf8("blue_pause_button.jpeg")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+		self.pause_button.setIcon(icon)
+		self.pause_button.setIconSize(QtCore.QSize(32, 32))
+		self.pause_button.setObjectName(_fromUtf8("pause_button"))
+		self.horizontalLayout.addWidget(self.pause_button)
+		self.record_button = QtGui.QToolButton(self.widget)
+		self.record_button.setText(_fromUtf8(""))
+		icon1 = QtGui.QIcon()
+		icon1.addPixmap(QtGui.QPixmap(_fromUtf8("record_button.gif")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+		self.record_button.setIcon(icon1)
+		self.record_button.setIconSize(QtCore.QSize(32, 32))
+		self.record_button.setObjectName(_fromUtf8("record_button"))
+		self.horizontalLayout.addWidget(self.record_button)
+		self.verticalLayout_2.addLayout(self.horizontalLayout)
+		self.lineEdit = QtGui.QLineEdit(self.widget)
+		self.lineEdit.setObjectName(_fromUtf8("lineEdit"))
+		self.verticalLayout_2.addWidget(self.lineEdit)
+		self.line_3 = QtGui.QFrame(self.widget)
+		self.line_3.setFrameShape(QtGui.QFrame.HLine)
+		self.line_3.setFrameShadow(QtGui.QFrame.Sunken)
+		self.line_3.setObjectName(_fromUtf8("line_3"))
+		self.verticalLayout_2.addWidget(self.line_3)
+		self.zero_button = QtGui.QPushButton(self.widget)
+		self.zero_button.setObjectName(_fromUtf8("zero_button"))
+		self.verticalLayout_2.addWidget(self.zero_button)
+		self.line_2 = QtGui.QFrame(self.widget)
+		self.line_2.setFrameShape(QtGui.QFrame.HLine)
+		self.line_2.setFrameShadow(QtGui.QFrame.Sunken)
+		self.line_2.setObjectName(_fromUtf8("line_2"))
+		self.verticalLayout_2.addWidget(self.line_2)
+		self.serialport_label = QtGui.QLabel(self.widget)
+		font = QtGui.QFont()
+		font.setPointSize(18)
+		font.setBold(True)
+		font.setWeight(75)
+		self.serialport_label.setFont(font)
+		self.serialport_label.setObjectName(_fromUtf8("serialport_label"))
+		self.verticalLayout_2.addWidget(self.serialport_label)
+		self.listWidget = QtGui.QListWidget(self.widget)
+		self.listWidget.setObjectName(_fromUtf8("listWidget"))
+		item = QtGui.QListWidgetItem()
+		self.listWidget.addItem(item)
+		self.verticalLayout_2.addWidget(self.listWidget)
+		MainWindow.setCentralWidget(self.centralwidget)
+		self.menubar = QtGui.QMenuBar(MainWindow)
+		self.menubar.setGeometry(QtCore.QRect(0, 0, 798, 22))
+		self.menubar.setObjectName(_fromUtf8("menubar"))
+		MainWindow.setMenuBar(self.menubar)
+		self.statusbar = QtGui.QStatusBar(MainWindow)
+		self.statusbar.setObjectName(_fromUtf8("statusbar"))
+		MainWindow.setStatusBar(self.statusbar)
+		
 
+		
+	def retranslateUi(self, MainWindow):
+		MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "MainWindow", None, QtGui.QApplication.UnicodeUTF8))
+		self.datamode_label.setText(QtGui.QApplication.translate("MainWindow", "Data Mode", None, QtGui.QApplication.UnicodeUTF8))
+		self.livedata_button.setText(QtGui.QApplication.translate("MainWindow", "Plot Live Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.existingdata_button.setText(QtGui.QApplication.translate("MainWindow", "Plot Existing Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.fakedata_button.setText(QtGui.QApplication.translate("MainWindow", "Plot Fake Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.recorddata_label.setText(QtGui.QApplication.translate("MainWindow", "Record Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.pause_button.setToolTip(QtGui.QApplication.translate("MainWindow", "Pause recording", None, QtGui.QApplication.UnicodeUTF8))
+		self.record_button.setToolTip(QtGui.QApplication.translate("MainWindow", "Start / resume recording", None, QtGui.QApplication.UnicodeUTF8))
+		self.lineEdit.setText(QtGui.QApplication.translate("MainWindow", "~/Desktop/", None, QtGui.QApplication.UnicodeUTF8))
+		self.zero_button.setText(QtGui.QApplication.translate("MainWindow", "Zero Diodes", None, QtGui.QApplication.UnicodeUTF8))
+		self.serialport_label.setText(QtGui.QApplication.translate("MainWindow", "Serial Port", None, QtGui.QApplication.UnicodeUTF8))
+		__sortingEnabled = self.listWidget.isSortingEnabled()
+		self.listWidget.setSortingEnabled(False)
+		item = self.listWidget.item(0)
+		item.setText(QtGui.QApplication.translate("MainWindow", "List of Serial Port Options", None, QtGui.QApplication.UnicodeUTF8))
+		self.listWidget.setSortingEnabled(__sortingEnabled)
 
     #def plot_grid(xcenter,ycenter,angle,color,figure):
-    def setup_grid(self):
-        '''Plot the initial pixel grid'''
-
-        self.xcenter = 1
-        self.ycenter = 1
-        self.angle = 15/57.3
-        self.color = 'r'
-
-        pixel_size = .6
-        edge = float(6) * pixel_size
-        length = pixel_size * 6
-
-        xstart1 = range(-6,7)
-        xend1 = xstart1
-        ystart1 = np.zeros(13) - 6
-        yend1 = ystart1 + 12
-
-        xstart2 = np.zeros(13) - 6
-        xend2 = xstart2 + 12
-        ystart2 = range(-6,7)
-        yend2 = ystart2
-
-        rotation_matrix = [[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]]
-
-        for k in range(0,13):
-            spot_start1 = [xstart1[k],ystart1[k]]
-            spot_end1 = [xend1[k],yend1[k]]
-
-            spot_start_transformed1 = np.dot(spot_start1,rotation_matrix)
-            spot_end_transformed1 = np.dot(spot_end1,rotation_matrix)
-
-            spot_start2 = [xstart2[k],ystart2[k]]
-            spot_end2 = [xend2[k],yend2[k]]
-
-            spot_start_transformed2 = np.dot(spot_start2,rotation_matrix)
-            spot_end_transformed2 = np.dot(spot_end2,rotation_matrix)
-            figure.plot([spot_start_transformed1[0],spot_end_transformed1[0]],[spot_start_transformed1[1],spot_end_transformed1[1]],color=color)
-            figure.plot([spot_start_transformed2[0],spot_end_transformed2[0]],[spot_start_transformed2[1],spot_end_transformed2[1]],color=color)
-
-
-        figure.set_xlim([-10,10])
-        figure.set_ylim([-10,10])
-        figure.set_title('Pixel Map')
-
-
-    def setup_diodes(self):
-        '''Plot the initial diode maps'''
-        self.fig1 = plt.figure()
-        #self.line1 = Line2D([],[],color='r*')
-
-        self.diode1 = self.fig1.add_subplot(2,2,1)
-        self.diode1_plot = self.diode1.plot(0, 0,'k.')       
-        self.diode1.set_xlabel('X Position [mm]')
-        self.diode1.set_ylabel('X Position [mm]')
-        self.diode1.set_title('Diode 1')
-
-        self.diode2 = self.fig1.add_subplot(2,2,2)
-        self.diode2_plot = self.diode2.plot(0, 0,'k.')	
-	self.diode2.set_xlabel('X Position [mm]')
-	self.diode2.set_ylabel('X Position [mm]')
-	self.diode2.set_title('Diode 2')
+	def setup_grid(self):
+		'''Plot the initial pixel grid'''
 	
-	self.diode3 = self.fig1.add_subplot(2,2,3)
-        self.diode3_plot = self.diode3.plot(0, 0,'k.')	
-	self.diode3.set_xlabel('X Position [mm]')
-	self.diode3.set_ylabel('X Position [mm]')
-	self.diode3.set_title('Diode 3')
+		self.xcenter = 1
+		self.ycenter = 1
+		self.angle = 15/57.3
+		self.color = 'r'
 	
-	self.diode4 = self.fig1.add_subplot(2,2,4)
-        self.diode4_plot = self.diode4.plot(0, 0,'k.')	
-	self.diode4.set_xlabel('X Position [mm]')
-	self.diode4.set_ylabel('X Position [mm]')
-	self.diode4.set_title('Diode 4')
-
-
-
+		pixel_size = .6
+		edge = float(6) * pixel_size
+		length = pixel_size * 6
 	
-
-
-        datasize=0
-        if (datasize==0):
-		self.diode1.set_xlim([-5,5])
-		self.diode1.set_ylim([-5,5])
-		self.diode2.set_xlim([-5,5])
-		self.diode2.set_ylim([-5,5])
-		self.diode3.set_xlim([-5,5])
-		self.diode3.set_ylim([-5,5])
-		self.diode4.set_xlim([-5,5])
-		self.diode4.set_ylim([-5,5])
-
-        #self.fig1.show()
-#         self.diode1.figure.canvas.draw()
-#         self.diode2.figure.canvas.draw()
-#         self.diode3.figure.canvas.draw()
-#         self.diode4.figure.canvas.draw()
-
-	#self.draw()
-	plt.show()
+		xstart1 = range(-6,7)
+		xend1 = xstart1
+		ystart1 = np.zeros(13) - 6
+		yend1 = ystart1 + 12
 	
-    def update_display(self,data):
-        '''Update the plot windows'''
-        #self.update_grid(data)
-        #print newdata
-        self.update_diodes(data)
-        #return a
+		xstart2 = np.zeros(13) - 6
+		xend2 = xstart2 + 12
+		ystart2 = range(-6,7)
+		yend2 = ystart2
+	
+		rotation_matrix = [[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]]
+	
+		for k in range(0,13):
+			spot_start1 = [xstart1[k],ystart1[k]]
+			spot_end1 = [xend1[k],yend1[k]]
+			
+			spot_start_transformed1 = np.dot(spot_start1,rotation_matrix)
+			spot_end_transformed1 = np.dot(spot_end1,rotation_matrix)
+			
+			spot_start2 = [xstart2[k],ystart2[k]]
+			spot_end2 = [xend2[k],yend2[k]]
+			
+			spot_start_transformed2 = np.dot(spot_start2,rotation_matrix)
+			spot_end_transformed2 = np.dot(spot_end2,rotation_matrix)
+			figure.plot([spot_start_transformed1[0],spot_end_transformed1[0]],[spot_start_transformed1[1],spot_end_transformed1[1]],color=color)
+			figure.plot([spot_start_transformed2[0],spot_end_transformed2[0]],[spot_start_transformed2[1],spot_end_transformed2[1]],color=color)
+			
+	
+		figure.set_xlim([-10,10])
+		figure.set_ylim([-10,10])
+		figure.set_title('Pixel Map')
 
-    def update_grid(self, data):
-        '''Update the pixel grid'''
+
+	def setup_diodes(self):
+		'''Plot the initial diode maps'''
+		self.fig1 = Figure()#plt.figure()
+		#self.line1 = Line2D([],[],color='r*')
+		self.canvas = FigureCanvas(self.fig1)
+		self.canvas.setParent(self.diode_plot_widget)
+			
+		self.diode1 = self.fig1.add_subplot(2,2,1)
+		self.diode1_plot = self.diode1.plot(0, 0,'k.')       
+		self.diode1.set_xlabel('X Position [mm]')
+		self.diode1.set_ylabel('X Position [mm]')
+		self.diode1.set_title('Diode 1')
+	
+		self.diode2 = self.fig1.add_subplot(2,2,2)
+		self.diode2_plot = self.diode2.plot(0, 0,'k.')	
+		self.diode2.set_xlabel('X Position [mm]')
+		self.diode2.set_ylabel('X Position [mm]')
+		self.diode2.set_title('Diode 2')
+		
+		self.diode3 = self.fig1.add_subplot(2,2,3)
+		self.diode3_plot = self.diode3.plot(0, 0,'k.')	
+		self.diode3.set_xlabel('X Position [mm]')
+		self.diode3.set_ylabel('X Position [mm]')
+		self.diode3.set_title('Diode 3')
+		
+		self.diode4 = self.fig1.add_subplot(2,2,4)
+		self.diode4_plot = self.diode4.plot(0, 0,'k.')	
+		self.diode4.set_xlabel('X Position [mm]')
+		self.diode4.set_ylabel('X Position [mm]')
+		self.diode4.set_title('Diode 4')
+			
+	
+	
+		
+	
+	
+		datasize=0
+		if (datasize==0):
+			self.diode1.set_xlim([-5,5])
+			self.diode1.set_ylim([-5,5])
+			self.diode2.set_xlim([-5,5])
+			self.diode2.set_ylim([-5,5])
+			self.diode3.set_xlim([-5,5])
+			self.diode3.set_ylim([-5,5])
+			self.diode4.set_xlim([-5,5])
+			self.diode4.set_ylim([-5,5])
+	
+		#self.fig1.show()
+	#         self.diode1.figure.canvas.draw()
+	#         self.diode2.figure.canvas.draw()
+	#         self.diode3.figure.canvas.draw()
+	#         self.diode4.figure.canvas.draw()
+	
+		#self.draw()
+		#plt.show()
+		self.canvas.show()
+	
+	def update_display(self,data):
+		'''Update the plot windows'''
+		#self.update_grid(data)
+		#print newdata
+		self.update_diodes(data)
+		#return a
+		self.canvas.draw()
+
+	def update_grid(self, data):
+		'''Update the pixel grid'''
 
 
-    def update_diodes(self, data):
-        '''Update the diode maps'''
-        self.ts = time.time()
-        print(self.ts - self.ts_old)
-        self.ts_old = self.ts
+	def update_diodes(self, data):
+		'''Update the diode maps'''
+		self.ts = time.time()
+		print(self.ts - self.ts_old)
+		self.ts_old = self.ts
 
-        #x1 = newdata[0][:]
-        #y1 = newdata[1][:]
-        #print x1
-        #print y1
-        #self.line1.set_data(x1,y1)
-        #self.x.append(newdata[0])
-        #self.y.append(newdata[1])
-        self.diode1_plot[0].set_data(data[:,0], data[:,1])
-        self.diode2_plot[0].set_data(data[:,2], data[:,3])
-        self.diode3_plot[0].set_data(data[:,4], data[:,5])
-        self.diode4_plot[0].set_data(data[:,6], data[:,7])
-        #self.diode4.set_ylim([-5,random.random()*5])
-        #self.diode1.figure.set_data(newdata[0],newdata[1])
-        #self.diode1.plot(newdata[0],newdata[1],'k.')
-        #self.diode2.plot(newdata[2],newdata[3],'k.')
-        #self.diode3.plot(newdata[4],newdata[5],'k.')
-        #self.diode4.plot(newdata[6],newdata[7],'k.')
-
-        #self.diode1.figure.canvas.draw()
-        #self.fig1.canvas.draw()
-
-        #return self.line1
-
+		#x1 = newdata[0][:]
+		#y1 = newdata[1][:]
+		#print x1
+		#print y1
+		#self.line1.set_data(x1,y1)
+		#self.x.append(newdata[0])
+		#self.y.append(newdata[1])
+		self.diode1_plot[0].set_data(data[:,0], data[:,1])
+		self.diode2_plot[0].set_data(data[:,2], data[:,3])
+		self.diode3_plot[0].set_data(data[:,4], data[:,5])
+		self.diode4_plot[0].set_data(data[:,6], data[:,7])
+		#self.diode4.set_ylim([-5,random.random()*5])
+		#self.diode1.figure.set_data(newdata[0],newdata[1])
+		#self.diode1.plot(newdata[0],newdata[1],'k.')
+		#self.diode2.plot(newdata[2],newdata[3],'k.')
+		#self.diode3.plot(newdata[4],newdata[5],'k.')
+		#self.diode4.plot(newdata[6],newdata[7],'k.')
+	
+		#self.diode1.figure.canvas.draw()
+		#self.fig1.canvas.draw()
+		
+		#return self.line1
+	
+	
 
 
 if __name__ == "__main__":
     #==========================================Setup Parameters
-
-    #Create class instances
-    plt.ion()
     
-    data    = Position_data(fake_data=True)
-    display = Position_plots()
-
-    sync_attempt = 0
-    read_cycle = 1
-
-    #Using the Position Plots Class fig1, get data from the Position Data class (read_cycle function)
-    #and display it using the Position Plots class (update_display function)
-    #Do this every X milliseconds
-    #ani = animation.FuncAnimation(display.fig1, display.update_display, data.read_cycle, interval=1000, blit=True)
-
-    #plt.draw()
-    print 'poop'
-    for read_times in range(40):
-    	display.update_display(data.read_cycle())
-    	plt.draw()
-
-    #Animation doesn't happen without this
-        
-
-    #ser.close()
+	try:
+		_fromUtf8 = QtCore.QString.fromUtf8
+	except AttributeError:
+		_fromUtf8 = lambda s: s
+	
+	#Create class instances
+	#plt.ion()
+	
+	data    = Position_data(fake_data=True)
+	#display = Position_plots()
+	
+	sync_attempt = 0
+	read_cycle = 1
+	
+	#Using the Position Plots Class fig1, get data from the Position Data class (read_cycle function)
+	#and display it using the Position Plots class (update_display function)
+	#Do this every X milliseconds
+	#ani = animation.FuncAnimation(display.fig1, display.update_display, data.read_cycle, interval=1000, blit=True)
+	
+	app = QtGui.QApplication(sys.argv)
+	display=Position_plots()
+	#display.show()
+	
+	#plt.draw()
+	print 'poop'
+	for read_times in range(10):
+		display.update_display(data.read_cycle())
+		
+	#Animation doesn't happen without this
+	
+	
+	sys.exit(app.exec_())
