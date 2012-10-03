@@ -297,7 +297,7 @@ class Position_data():
 
 class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
-	def __init__(self):
+	def __init__(self, data):
 		'''Initialize the GUI Window'''
 		self.ts_old = time.time()
 		self.ts = time.time()
@@ -308,7 +308,12 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.y = []
 		self.retranslateUi(self.main_gui)
 		QtCore.QMetaObject.connectSlotsByName(self.main_gui)
-		#self.main_gui.show()		
+		self._timer = self.fig1.canvas.new_timer(interval = 300)
+	        self._timer.interval = 23
+        	self._timer.add_callback(self.update_display)
+        	self._data = data
+		self.main_gui.show()
+		self._timer.start()		
         
 	def setupUi(self, MainWindow):
 		MainWindow.setObjectName(_fromUtf8("MainWindow"))
@@ -540,21 +545,20 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 	
 		#self.draw()
 		#plt.show()
-		self.canvas.show()
+		self.canvas.draw()
 	
-	def update_display(self,data):
+	def update_display(self):
 		'''Update the plot windows'''
 		#self.update_grid(data)
 		#print newdata
-		self.update_diodes(data)
+		self.update_diodes()
 		#return a
-		self.canvas.draw()
-
+	
 	def update_grid(self, data):
 		'''Update the pixel grid'''
 
 
-	def update_diodes(self, data):
+	def update_diodes(self):
 		'''Update the diode maps'''
 		self.ts = time.time()
 		print(self.ts - self.ts_old)
@@ -567,6 +571,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#self.line1.set_data(x1,y1)
 		#self.x.append(newdata[0])
 		#self.y.append(newdata[1])
+		data = self._data.read_cycle()
 		self.diode1_plot[0].set_data(data[:,0], data[:,1])
 		self.diode2_plot[0].set_data(data[:,2], data[:,3])
 		self.diode3_plot[0].set_data(data[:,4], data[:,5])
@@ -582,7 +587,8 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#self.fig1.canvas.draw()
 		
 		#return self.line1
-	
+		self.canvas.draw()
+		#self.main_gui.show()
 	
 
 
@@ -609,13 +615,14 @@ if __name__ == "__main__":
 	#ani = animation.FuncAnimation(display.fig1, display.update_display, data.read_cycle, interval=1000, blit=True)
 	
 	app = QtGui.QApplication(sys.argv)
-	display=Position_plots()
+	display=Position_plots(data)
 	#display.show()
 	
 	#plt.draw()
-	print 'poop'
-	for read_times in range(10):
-		display.update_display(data.read_cycle())
+	#print 'poop'
+	#for read_times in range(10):
+	#	display.update_display(data.read_cycle())
+	#	time.sleep(.2)
 		
 	#Animation doesn't happen without this
 	
