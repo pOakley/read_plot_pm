@@ -49,13 +49,13 @@ import sys
 
 class Position_data():
 
-    def __init__(self, fake_data=False):
+    def __init__(self):
         '''Initialize the data'''
-        self.fake_data = fake_data
+        #self.fake_data = fake_data
         self.initialize_data()
-        if (self.fake_data == False):
-            self.connect_to_usb()
-
+        #if (self.fake_data == False):
+        #self.connect_to_usb()
+	self.connected_to_usb = False
 
     def initialize_data(self):
         '''Initialize data'''
@@ -90,14 +90,15 @@ class Position_data():
         self.x1_position = []
         self.y1_position = []
         self.position = np.zeros((1,8))
-
+	self.zero_spot = np.zeros((1,8))
 
     def connect_to_usb(self):
         '''Connect to USB feed'''
 
-        list_of_usb_ports = serports.comports()
+        #list_of_usb_ports = serports.comports()
 
-        self.port = '/dev/tty.usbserial-FTT3QDXK'	#Small PCB Converter
+        #self.port = '/dev/tty.usbserial-FTT3QDXK'	#Small PCB Converter
+        
         #self.port = '/dev/tty.usbserial-FTT31FFA'	#Bigger Converter
         #self.port = '/dev/tty.usbmodem411'
         self.baudrate = 115200
@@ -105,14 +106,20 @@ class Position_data():
         self.rtscts = False
         self.xonxoff = False
         #self.ser = serial.Serial(self.port, self.baudrate, parity=self.parity, rtscts=self.rtscts, xonxoff=self.xonxoff, timeout=1)
-        self.ser = serial.Serial(self.port, self.baudrate)
+        try:
+        	self.ser = serial.Serial(self.port, self.baudrate)
+		print 'Setting up USB connection:'
+		print 'Port: ' + self.port
+		print 'Baudrate: ' + str(self.baudrate)
+		print 'Parity: ' + self.parity
+		print 'RTSCTS: ' + str(self.rtscts)
+		print 'XONXOFF: ' + str(self.xonxoff)    
+		self.connected_to_usb = True
+        except:
+        	print "Failed to make USB Connection"
+        	
 
-        print 'Setting up USB connection:'
-        print 'Port: ' + self.port
-        print 'Baudrate: ' + str(self.baudrate)
-        print 'Parity: ' + self.parity
-        print 'RTSCTS: ' + str(self.rtscts)
-        print 'XONXOFF: ' + str(self.xonxoff)
+
 
 
 
@@ -192,24 +199,33 @@ class Position_data():
         self.cycle_byte_to_int = []
 
         if (self.fake_data == False):
-            self.cycle_byte.append(self.sync_feed(sync_attempt))
-            self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))
+        
+                   
+            if self.connected_to_usb == False:
+            	self.connect_to_usb()
 
-            if self.cycle_byte_to_int[0] < 128:
-                print "Failed to Sync. Exiting"
-                #return 0;
-                sys.exit()
 
-            self.read_31_bytes()
 
-            self.valuearray = self.cycle_valuearray
-            self.bit15array = self.cycle_bit15array
-            self.byte = self.cycle_byte
-            self.byte_to_int = self.cycle_byte_to_int
-
-            self.calculate_positions()
-
-            self.print_positions()
+            if self.connected_to_usb == True:
+		    self.cycle_byte.append(self.sync_feed(sync_attempt))		
+		    self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))     
+	     
+		    if self.cycle_byte_to_int[0] < 128:
+			print "Failed to Sync. Exiting"
+			#return 0;
+			sys.exit()
+	
+		    self.read_31_bytes()
+	
+		    self.valuearray = self.cycle_valuearray
+		    self.bit15array = self.cycle_bit15array
+		    self.byte = self.cycle_byte
+		    self.byte_to_int = self.cycle_byte_to_int
+	
+		    self.calculate_positions()
+	
+		    self.print_positions()
+		
         else:
             r = random.uniform(-3,3)
             self.x1_position.append(r)
@@ -219,9 +235,7 @@ class Position_data():
             else:
             	self.position = np.vstack([self.position,np.ones(8)*r])
 
-        return self.position
-        #yield self.position
-        #yield [self.x1_position, self.y1_position]
+        #return self.position
 
     def read_31_bytes(self):
         '''Read the next 31 bytes'''
@@ -261,6 +275,7 @@ class Position_data():
 
 
     def print_positions(self):
+    
         '''Print out all the variables'''
         print 'Byte original bitarray bitarray bit14array valuearray'
         for printinfo in range(32):
@@ -281,20 +296,33 @@ class Position_data():
         print self.y3_position
         print self.x4_position
         print self.y4_position
-
-
-    def save_data(self):
-        '''Save the data'''
-
-        for k in range(8):
-        	print str(self.position[-1,k])
-        	self.save_file.write(str(self.position[-1,k])+', ')
         
-        self.save_file.write('\n')
-        
-        #current_time = str(datetime.datetime.now())
-
-        #print "Saved Data: ", data_tosave_filename
+    def zero_diodes(self):
+    	
+    	
+    	
+#     	if np.sum(self.position)==0:
+#     		self.zero_spot = np.zeros((1,8))
+#     	else:
+#     		self.zero_spot = self.position[-1,:]	
+#     	
+	
+	def save_data(self):
+		'''Save the data'''
+		
+		current_time = str(datetime.datetime.now())
+		
+		try:
+			self.save_file.write(current_time + ', ')
+			for k in range(8):
+				print str(self.position[-1,k])
+				self.save_file.write(str(self.position[-1,k])+', ')
+			
+			self.save_file.write('\n')
+		except:
+			print "Error in save loop - data probably not saved"
+			
+		#print "Saved Data: ", data_tosave_filename
 
 
 
@@ -308,15 +336,18 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.main_gui = QtGui.QMainWindow()
 		self.setupUi(self.main_gui)
 		self.setup_diodes()
+		self.setup_grid()
 		self.x = []
 		self.y = []
 		self.record = False
 		self.retranslateUi(self.main_gui)
 		QtCore.QMetaObject.connectSlotsByName(self.main_gui)
-		self._timer = self.fig1.canvas.new_timer(interval = 300)
-	        self._timer.interval = 23
+		self._timer = self.fig1.canvas.new_timer()
+	        self._timer.interval = 100
         	self._timer.add_callback(self.update_display)
         	self._data = data
+		self._color_wheel = ['k','r','b','g','m']
+		self._color_index = 0
 		self.main_gui.show()
         
         def start(self):
@@ -347,8 +378,20 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			self.record = True
 			
 		
-	def zero(self):
-		pass
+	def specify_filename(self):
+		
+		fname = QtGui.QFileDialog.getSaveFileName(caption="Select filename to record data to", directory="/Users/Oakley/Desktop/")
+
+		if fname[-4:] != ".txt":
+			fname += ".txt"
+			
+		self.filename_box.setText(fname)
+	
+		#Advance the color wheel
+		self._color_index += 1
+		
+		#Find the new zero point from the data class
+		self._data.zero_diodes()
 
 	def setupUi(self, MainWindow):
 		MainWindow.setObjectName(_fromUtf8("MainWindow"))
@@ -356,10 +399,10 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.centralwidget = QtGui.QWidget(MainWindow)
 		self.centralwidget.setObjectName(_fromUtf8("centralwidget"))
 		self.diode_plot_widget = QtGui.QWidget(self.centralwidget)
-		self.diode_plot_widget.setGeometry(QtCore.QRect(29, 39, 671, 571))
+		self.diode_plot_widget.setGeometry(QtCore.QRect(30, 40, 671, 571))
 		self.diode_plot_widget.setObjectName(_fromUtf8("diode_plot_widget"))
 		self.pixel_plot_widget = QtGui.QWidget(self.centralwidget)
-		self.pixel_plot_widget.setGeometry(QtCore.QRect(29, 539, 471, 191))
+		self.pixel_plot_widget.setGeometry(QtCore.QRect(30, 539, 671, 200))
 		self.pixel_plot_widget.setObjectName(_fromUtf8("pixel_plot_widget"))
 		self.widget = QtGui.QWidget(self.centralwidget)
 		self.widget.setGeometry(QtCore.QRect(730, 40, 241, 691))
@@ -386,6 +429,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.existingdata_button.setObjectName(_fromUtf8("existingdata_button"))
 		self.verticalLayout.addWidget(self.existingdata_button)
 		self.fakedata_button = QtGui.QRadioButton(self.widget)
+		self.fakedata_button.setChecked(True)
 		self.fakedata_button.setObjectName(_fromUtf8("fakedata_button"))
 		self.verticalLayout.addWidget(self.fakedata_button)
 		self.verticalLayout_2.addLayout(self.verticalLayout)
@@ -412,7 +456,6 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.pause_button.setIconSize(QtCore.QSize(32, 32))
 		self.pause_button.setObjectName(_fromUtf8("pause_button"))
 		self.horizontalLayout.addWidget(self.pause_button)
-		self.record_button = QtGui.QToolButton(self.widget)
 		self.play_button = QtGui.QToolButton(self.widget)
 		self.play_button.setText(_fromUtf8(""))
 		icon1 = QtGui.QIcon()
@@ -421,26 +464,30 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.play_button.setIconSize(QtCore.QSize(32, 32))
 		self.play_button.setObjectName(_fromUtf8("play_button"))
 		self.horizontalLayout.addWidget(self.play_button)
+		self.record_button = QtGui.QToolButton(self.widget)
 		self.record_button.setText(_fromUtf8(""))
 		icon2 = QtGui.QIcon()
 		icon2.addPixmap(QtGui.QPixmap(_fromUtf8("record_button.gif")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
 		self.record_button.setIcon(icon2)
 		self.record_button.setIconSize(QtCore.QSize(32, 32))
-	        self.record_button.setCheckable(True)
+		self.record_button.setCheckable(True)
+		self.record_button.setAutoExclusive(False)
+		self.record_button.setAutoRaise(False)
+		self.record_button.setArrowType(QtCore.Qt.NoArrow)
 		self.record_button.setObjectName(_fromUtf8("record_button"))
 		self.horizontalLayout.addWidget(self.record_button)
 		self.verticalLayout_2.addLayout(self.horizontalLayout)
 		self.filename_box = QtGui.QLineEdit(self.widget)
 		self.filename_box.setObjectName(_fromUtf8("filename_box"))
 		self.verticalLayout_2.addWidget(self.filename_box)
-		self.line_3 = QtGui.QFrame(self.widget)
-		self.line_3.setFrameShape(QtGui.QFrame.HLine)
-		self.line_3.setFrameShadow(QtGui.QFrame.Sunken)
-		self.line_3.setObjectName(_fromUtf8("line_3"))
-		self.verticalLayout_2.addWidget(self.line_3)
-		self.zero_button = QtGui.QPushButton(self.widget)
-		self.zero_button.setObjectName(_fromUtf8("zero_button"))
-		self.verticalLayout_2.addWidget(self.zero_button)
+# 		self.line_3 = QtGui.QFrame(self.widget)
+# 		self.line_3.setFrameShape(QtGui.QFrame.HLine)
+# 		self.line_3.setFrameShadow(QtGui.QFrame.Sunken)
+# 		self.line_3.setObjectName(_fromUtf8("line_3"))
+#		self.verticalLayout_2.addWidget(self.line_3)
+		self.filename_button = QtGui.QPushButton(self.widget)
+		self.filename_button.setObjectName(_fromUtf8("filename_button"))
+		self.verticalLayout_2.addWidget(self.filename_button)
 		self.line_2 = QtGui.QFrame(self.widget)
 		self.line_2.setFrameShape(QtGui.QFrame.HLine)
 		self.line_2.setFrameShadow(QtGui.QFrame.Sunken)
@@ -456,22 +503,32 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.verticalLayout_2.addWidget(self.serialport_label)
 		self.listWidget = QtGui.QListWidget(self.widget)
 		self.listWidget.setObjectName(_fromUtf8("listWidget"))
-		#item = QtGui.QListWidgetItem()
-		#self.listWidget.addItem(item)
+		item = QtGui.QListWidgetItem()
+		self.listWidget.addItem(item)
+		item = QtGui.QListWidgetItem()
+		self.listWidget.addItem(item)
 		self.verticalLayout_2.addWidget(self.listWidget)
 		MainWindow.setCentralWidget(self.centralwidget)
 		self.menubar = QtGui.QMenuBar(MainWindow)
-		self.menubar.setGeometry(QtCore.QRect(0, 0, 798, 22))
+		self.menubar.setGeometry(QtCore.QRect(0, 0, 998, 22))
 		self.menubar.setObjectName(_fromUtf8("menubar"))
 		MainWindow.setMenuBar(self.menubar)
 		self.statusbar = QtGui.QStatusBar(MainWindow)
 		self.statusbar.setObjectName(_fromUtf8("statusbar"))
 		MainWindow.setStatusBar(self.statusbar)
 		
+		
+	       #  openFile = QtGui.QAction(QtGui.QIcon('open.png'), 'Open', self)
+# 		openFile.setShortcut('Ctrl+O')
+# 		openFile.setStatusTip('Open new File')
+# 		openFile.triggered.connect(self.zero)
+# 	
+
+
 		QtCore.QObject.connect(self.play_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.start)
 		QtCore.QObject.connect(self.record_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.record)
 		QtCore.QObject.connect(self.pause_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.pause)
-		QtCore.QObject.connect(self.zero_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.zero)
+		QtCore.QObject.connect(self.filename_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.specify_filename)
 
 		
 	def retranslateUi(self, MainWindow):
@@ -483,8 +540,8 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.recorddata_label.setText(QtGui.QApplication.translate("MainWindow", "Record Data", None, QtGui.QApplication.UnicodeUTF8))
 		self.pause_button.setToolTip(QtGui.QApplication.translate("MainWindow", "Pause recording", None, QtGui.QApplication.UnicodeUTF8))
 		self.record_button.setToolTip(QtGui.QApplication.translate("MainWindow", "Start / resume recording", None, QtGui.QApplication.UnicodeUTF8))
-		self.filename_box.setText(QtGui.QApplication.translate("MainWindow", "~/Desktop/", None, QtGui.QApplication.UnicodeUTF8))
-		self.zero_button.setText(QtGui.QApplication.translate("MainWindow", "Zero Diodes", None, QtGui.QApplication.UnicodeUTF8))
+		self.filename_box.setText(QtGui.QApplication.translate("MainWindow", "/Users/Oakley/Desktop/deleteme.txt", None, QtGui.QApplication.UnicodeUTF8))
+		self.filename_button.setText(QtGui.QApplication.translate("MainWindow", "Specify Filename", None, QtGui.QApplication.UnicodeUTF8))
 		self.serialport_label.setText(QtGui.QApplication.translate("MainWindow", "Serial Ports", None, QtGui.QApplication.UnicodeUTF8))
 		__sortingEnabled = self.listWidget.isSortingEnabled()
 		self.listWidget.setSortingEnabled(False)
@@ -500,17 +557,24 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			item = self.listWidget.item(counter)
 			item.setText(QtGui.QApplication.translate("MainWindow", usb_option, None, QtGui.QApplication.UnicodeUTF8))
 			counter += 1
-		
+		self.listWidget.item(counter-1).setSelected(True)
+		#self.listWidget.setItemSelected(self.listWidget.item(counter-1), True)
 		self.listWidget.setSortingEnabled(__sortingEnabled)
 
     #def plot_grid(xcenter,ycenter,angle,color,figure):
 	def setup_grid(self):
 		'''Plot the initial pixel grid'''
-	
-		self.xcenter = 1
-		self.ycenter = 1
-		self.angle = 15/57.3
-		self.color = 'r'
+		
+		self.fig2 = Figure()
+		self.fig2.set_size_inches(8,2.5)
+		self.canvas2 = FigureCanvas(self.fig2)
+		self.canvas2.setParent(self.pixel_plot_widget)
+		self.pixel_map = self.fig2.add_subplot(111)
+		
+		self.xcenter = 0
+		self.ycenter = 0
+		self.angle   = 0 #15/57.3
+		self.color   = 'r'
 	
 		pixel_size = .6
 		edge = float(6) * pixel_size
@@ -526,7 +590,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		ystart2 = range(-6,7)
 		yend2 = ystart2
 	
-		rotation_matrix = [[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]]
+		rotation_matrix = [[math.cos(self.angle),-math.sin(self.angle)],[math.sin(self.angle),math.cos(self.angle)]]
 	
 		for k in range(0,13):
 			spot_start1 = [xstart1[k],ystart1[k]]
@@ -540,13 +604,13 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			
 			spot_start_transformed2 = np.dot(spot_start2,rotation_matrix)
 			spot_end_transformed2 = np.dot(spot_end2,rotation_matrix)
-			figure.plot([spot_start_transformed1[0],spot_end_transformed1[0]],[spot_start_transformed1[1],spot_end_transformed1[1]],color=color)
-			figure.plot([spot_start_transformed2[0],spot_end_transformed2[0]],[spot_start_transformed2[1],spot_end_transformed2[1]],color=color)
+			self.pixel_map.plot([spot_start_transformed1[0],spot_end_transformed1[0]],[spot_start_transformed1[1],spot_end_transformed1[1]],color=self.color)
+			self.pixel_map.plot([spot_start_transformed2[0],spot_end_transformed2[0]],[spot_start_transformed2[1],spot_end_transformed2[1]],color=self.color)
 			
 	
-		figure.set_xlim([-10,10])
-		figure.set_ylim([-10,10])
-		figure.set_title('Pixel Map')
+		self.pixel_map.set_xlim([-10,10])
+		self.pixel_map.set_ylim([-10,10])
+		self.pixel_map.set_title('Pixel Map (APPROXIMATION ONLY!)')
 
 
 	def setup_diodes(self):
@@ -558,26 +622,26 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			
 		self.diode1 = self.fig1.add_subplot(2,2,1)
 		self.diode1_plot = self.diode1.plot(0, 0,'k.')       
-		self.diode1.set_xlabel('X Position [mm]')
-		self.diode1.set_ylabel('X Position [mm]')
+		#self.diode1.set_xlabel('X Position [mm]')
+		self.diode1.set_ylabel('Y Position [mm]')
 		self.diode1.set_title('Diode 1')
 	
 		self.diode2 = self.fig1.add_subplot(2,2,2)
 		self.diode2_plot = self.diode2.plot(0, 0,'k.')	
-		self.diode2.set_xlabel('X Position [mm]')
-		self.diode2.set_ylabel('X Position [mm]')
+		#self.diode2.set_xlabel('X Position [mm]')
+		#self.diode2.set_ylabel('Y Position [mm]')
 		self.diode2.set_title('Diode 2')
 		
 		self.diode3 = self.fig1.add_subplot(2,2,3)
 		self.diode3_plot = self.diode3.plot(0, 0,'k.')	
 		self.diode3.set_xlabel('X Position [mm]')
-		self.diode3.set_ylabel('X Position [mm]')
+		self.diode3.set_ylabel('Y Position [mm]')
 		self.diode3.set_title('Diode 3')
 		
 		self.diode4 = self.fig1.add_subplot(2,2,4)
 		self.diode4_plot = self.diode4.plot(0, 0,'k.')	
 		self.diode4.set_xlabel('X Position [mm]')
-		self.diode4.set_ylabel('X Position [mm]')
+		#self.diode4.set_ylabel('Y Position [mm]')
 		self.diode4.set_title('Diode 4')
 			
 	
@@ -609,11 +673,11 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 	def update_display(self):
 		'''Update the plot windows'''
 		#self.update_grid(data)
-		#print newdata
+		
 		self.update_diodes()
 		if self.record:
 			self._data.save_data()
-		#return a
+		
 	
 	def update_grid(self, data):
 		'''Update the pixel grid'''
@@ -633,7 +697,20 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#self.x.append(newdata[0])
 		#self.y.append(newdata[1])
 		self._data.fake_data = self.fakedata_button.isChecked()
-		data = self._data.read_cycle()
+		
+		#This is sort of weird way to find the selected port. Other methods seem to fail though
+		#The port will be auto-selected, but doesn't react the same as user-selected.
+		#Weird
+		selected_ports = self.listWidget.selectedItems()
+		self._data.port = selected_ports[0].text()
+
+		self._data.read_cycle()
+		data = self._data.position
+
+		#Reposition the new data with respect to the zero point
+		#plot_data = data - self._data.zero_spot
+		#spot_color = self._color_wheel[self._color_index]
+		#self.diode1_plot[0].set_color(spot_color)
 		self.diode1_plot[0].set_data(data[:,0], data[:,1])
 		self.diode2_plot[0].set_data(data[:,2], data[:,3])
 		self.diode3_plot[0].set_data(data[:,4], data[:,5])
@@ -665,7 +742,7 @@ if __name__ == "__main__":
 	#Create class instances
 	#plt.ion()
 	
-	data    = Position_data(fake_data=True)
+	data    = Position_data()
 	#display = Position_plots()
 	
 	sync_attempt = 0
