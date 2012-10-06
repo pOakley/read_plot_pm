@@ -47,6 +47,19 @@ import time
 from PyQt4 import QtCore, QtGui
 import sys
 
+
+class Diode():
+	
+	def __init__(self,x,y):
+		'''Initialize the diode'''
+		#Define the location of the diode based on the CAD model
+		#X and Y are in the diode frame
+		self.xcenter = x
+		self.ycenter = y
+		
+		
+		
+
 class Position_data():
 
     def __init__(self):
@@ -331,23 +344,45 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
 	def __init__(self, data):
 		'''Initialize the GUI Window'''
+		
+		#Timing information
 		self.ts_old = time.time()
 		self.ts = time.time()
+		
+		#GUI stuff
 		self.main_gui = QtGui.QMainWindow()
 		self.setupUi(self.main_gui)
+		
+		#Plot stuff
 		self.setup_diodes()
 		self.setup_grid()
-		self.x = []
-		self.y = []
+# 		self.x = []
+# 		self.y = []
+
+		#More GUI stuff
 		self.record = False
 		self.retranslateUi(self.main_gui)
 		QtCore.QMetaObject.connectSlotsByName(self.main_gui)
+		
+		#Define the plot timer that updates the diodes / map
 		self._timer = self.fig1.canvas.new_timer()
 	        self._timer.interval = 100
         	self._timer.add_callback(self.update_display)
+        	
+        	#Give this class access to the serial data class
         	self._data = data
+        	
+        	#Color stuff (doesn't work right now)
 		self._color_wheel = ['k','r','b','g','m']
 		self._color_index = 0
+		
+		#Setup the diodes
+		self.diode1 = Diode(0,0)
+		self.diode2 = Diode(1,1)
+		self.diode3 = Diode(2,2)
+		self.diode4 = Diode(3,3)
+		
+		#Show the GUI
 		self.main_gui.show()
         
         def start(self):
@@ -358,30 +393,48 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		
 	def record(self):
 		if self.record == True:
+			#Data is already recording, turn recording off
+
+			#Stop recording
+			self.record = False
+			
 			try:
+				#Close the save file
 				self._data.save_file.close()
 			except:
 				print "Error closing save file - data may be lost"
-			self.record = False
 		else:
-			try:	
+			#Start recording
+			self.record = True
+			try:
+				#Determine the save filename from the filename_box	
 				save_filename = self.filename_box.text()
+				
+				
 				print 'trying to open file: ' + save_filename
+				
+				#Should we write the header line in the file (line 1)?
 				write_header = True
+				
 				if os.path.isfile(save_filename):
+					#File already exists, don't need the header line
 					write_header = False
+				
+				#Open the file to save to
 				self._data.save_file = open(save_filename,'a')
+				
+				#Write the header if a new file
 				if write_header:
 					self._data.save_file.write("X1, Y1, X2, Y2, X3, Y3, X4, Y4 \n")
 			except:
 				print "Error opening file to save - data won't be saved"
-			self.record = True
 			
 		
 	def specify_filename(self):
 		
 		fname = QtGui.QFileDialog.getSaveFileName(caption="Select filename to record data to", directory="/Users/Oakley/Desktop/")
 
+		#Add the .txt extension if it's not already there
 		if fname[-4:] != ".txt":
 			fname += ".txt"
 			
@@ -480,11 +533,6 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.filename_box = QtGui.QLineEdit(self.widget)
 		self.filename_box.setObjectName(_fromUtf8("filename_box"))
 		self.verticalLayout_2.addWidget(self.filename_box)
-# 		self.line_3 = QtGui.QFrame(self.widget)
-# 		self.line_3.setFrameShape(QtGui.QFrame.HLine)
-# 		self.line_3.setFrameShadow(QtGui.QFrame.Sunken)
-# 		self.line_3.setObjectName(_fromUtf8("line_3"))
-#		self.verticalLayout_2.addWidget(self.line_3)
 		self.filename_button = QtGui.QPushButton(self.widget)
 		self.filename_button.setObjectName(_fromUtf8("filename_button"))
 		self.verticalLayout_2.addWidget(self.filename_button)
@@ -517,13 +565,6 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.statusbar.setObjectName(_fromUtf8("statusbar"))
 		MainWindow.setStatusBar(self.statusbar)
 		
-		
-	       #  openFile = QtGui.QAction(QtGui.QIcon('open.png'), 'Open', self)
-# 		openFile.setShortcut('Ctrl+O')
-# 		openFile.setStatusTip('Open new File')
-# 		openFile.triggered.connect(self.zero)
-# 	
-
 
 		QtCore.QObject.connect(self.play_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.start)
 		QtCore.QObject.connect(self.record_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.record)
@@ -561,9 +602,8 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#self.listWidget.setItemSelected(self.listWidget.item(counter-1), True)
 		self.listWidget.setSortingEnabled(__sortingEnabled)
 
-    #def plot_grid(xcenter,ycenter,angle,color,figure):
 	def setup_grid(self):
-		'''Plot the initial pixel grid'''
+		'''Set up the figure for plotting the pixel grid'''
 		
 		self.fig2 = Figure()
 		self.fig2.set_size_inches(8,2.5)
@@ -571,47 +611,65 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.canvas2.setParent(self.pixel_plot_widget)
 		self.pixel_map = self.fig2.add_subplot(111)
 		
-		self.xcenter = 0
-		self.ycenter = 0
-		self.angle   = 0 #15/57.3
-		self.color   = 'r'
-	
-		pixel_size = .6
-		edge = float(6) * pixel_size
-		length = pixel_size * 6
-	
-		xstart1 = range(-6,7)
-		xend1 = xstart1
-		ystart1 = np.zeros(13) - 6
-		yend1 = ystart1 + 12
-	
-		xstart2 = np.zeros(13) - 6
-		xend2 = xstart2 + 12
-		ystart2 = range(-6,7)
-		yend2 = ystart2
-	
-		rotation_matrix = [[math.cos(self.angle),-math.sin(self.angle)],[math.sin(self.angle),math.cos(self.angle)]]
-	
-		for k in range(0,13):
-			spot_start1 = [xstart1[k],ystart1[k]]
-			spot_end1 = [xend1[k],yend1[k]]
-			
-			spot_start_transformed1 = np.dot(spot_start1,rotation_matrix)
-			spot_end_transformed1 = np.dot(spot_end1,rotation_matrix)
-			
-			spot_start2 = [xstart2[k],ystart2[k]]
-			spot_end2 = [xend2[k],yend2[k]]
-			
-			spot_start_transformed2 = np.dot(spot_start2,rotation_matrix)
-			spot_end_transformed2 = np.dot(spot_end2,rotation_matrix)
-			self.pixel_map.plot([spot_start_transformed1[0],spot_end_transformed1[0]],[spot_start_transformed1[1],spot_end_transformed1[1]],color=self.color)
-			self.pixel_map.plot([spot_start_transformed2[0],spot_end_transformed2[0]],[spot_start_transformed2[1],spot_end_transformed2[1]],color=self.color)
-			
-	
+		self.pixel_plot_new = self.pixel_map.plot(0,0,color='r')
+		self.pixel_plot = self.pixel_map.plot(0,0,color='k')
+		
+		self.initialize_grid_values()
+		self.update_grid(0,0,0,'r')
 		self.pixel_map.set_xlim([-10,10])
 		self.pixel_map.set_ylim([-10,10])
 		self.pixel_map.set_title('Pixel Map (APPROXIMATION ONLY!)')
 
+
+	def initialize_grid_values(self):
+		'''Initialize the pixel grid'''
+		self.angle = 0		
+		self.rotation_matrix = [[math.cos(self.angle),-math.sin(self.angle)],[math.sin(self.angle),math.cos(self.angle)]]
+
+		xgrid = []
+		ygrid = []
+		
+		for k in range(6,-1,-1):
+			
+			x_addition = np.concatenate((np.arange(-6,7),np.arange(-6,7)[::-1]))
+			xgrid = np.concatenate((xgrid, x_addition))
+			y_addition = np.concatenate((np.ones(13)*k,np.ones(13)*(k-6)))
+			ygrid = np.concatenate((ygrid,y_addition))
+			
+		for k in range(-6,1,1):
+			x_addition = np.concatenate((np.ones(13)*k,np.ones(13)*(k+6)))
+			xgrid = np.concatenate((xgrid, x_addition))
+			y_addition = np.concatenate((np.arange(-6,7),np.arange(-6,7)[::-1]))
+			ygrid = np.concatenate((ygrid, y_addition))
+
+		self.xgrid = xgrid
+		self.ygrid = ygrid
+	
+	def update_grid(self,x,y,angle,color):
+		'''Plot the pixel grid'''
+				
+		self.rotation_matrix = [[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]]
+
+		self.xgrid_new = []
+		self.ygrid_new = []
+
+		#Reshape the position pairs to be a 2 column array
+		original_pairs = np.transpose(np.vstack((self.xgrid,self.ygrid)))
+		
+		#Calculate the new pairs after applying the rotation matrix
+		new_pairs = np.dot(original_pairs,self.rotation_matrix)
+
+		#Break it back up into individual arrays for plotting
+		self.xgrid_new = new_pairs[:,0]
+		self.ygrid_new = new_pairs[:,1]
+		
+		#Assign the new data to the array for plotting
+		self.pixel_plot_new[0].set_data(self.xgrid_new,self.ygrid_new)
+		self.pixel_plot[0].set_data(self.xgrid,self.ygrid)
+		
+		#Plot the two grids
+		self.canvas2.draw()
+		
 
 	def setup_diodes(self):
 		'''Plot the initial diode maps'''
@@ -643,46 +701,40 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.diode4.set_xlabel('X Position [mm]')
 		#self.diode4.set_ylabel('Y Position [mm]')
 		self.diode4.set_title('Diode 4')
-			
+
 	
 	
-		
+		#Set the limits on the diode plots
+		self.diode1.set_xlim([-5,5])
+		self.diode1.set_ylim([-5,5])
+		self.diode2.set_xlim([-5,5])
+		self.diode2.set_ylim([-5,5])
+		self.diode3.set_xlim([-5,5])
+		self.diode3.set_ylim([-5,5])
+		self.diode4.set_xlim([-5,5])
+		self.diode4.set_ylim([-5,5])
 	
-	
-		datasize=0
-		if (datasize==0):
-			self.diode1.set_xlim([-5,5])
-			self.diode1.set_ylim([-5,5])
-			self.diode2.set_xlim([-5,5])
-			self.diode2.set_ylim([-5,5])
-			self.diode3.set_xlim([-5,5])
-			self.diode3.set_ylim([-5,5])
-			self.diode4.set_xlim([-5,5])
-			self.diode4.set_ylim([-5,5])
-	
-		#self.fig1.show()
-	#         self.diode1.figure.canvas.draw()
-	#         self.diode2.figure.canvas.draw()
-	#         self.diode3.figure.canvas.draw()
-	#         self.diode4.figure.canvas.draw()
-	
-		#self.draw()
-		#plt.show()
 		self.canvas.draw()
 	
 	def update_display(self):
 		'''Update the plot windows'''
-		#self.update_grid(data)
 		
+		#Update the diode plots
 		self.update_diodes()
+		
+		#Calculate how much the pixel map has shifted
+		self.calculate_shift()
+		
+		#Update the pixel grid display plot
+		self.update_grid(random.uniform(-3,3),random.uniform(-3,3),random.uniform(-3,3),'k')
+		
+		#If set to record, start recording
 		if self.record:
 			self._data.save_data()
+
+	def calculate_shift(self):
+		pass
 		
-	
-	def update_grid(self, data):
-		'''Update the pixel grid'''
-
-
 	def update_diodes(self):
 		'''Update the diode maps'''
 		self.ts = time.time()
