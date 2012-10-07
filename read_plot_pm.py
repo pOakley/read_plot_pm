@@ -61,257 +61,256 @@ class Diode():
 		
 
 class Position_data():
+	
 
-    def __init__(self):
-        '''Initialize the data'''
-        #self.fake_data = fake_data
-        self.initialize_data()
-        #if (self.fake_data == False):
-        #self.connect_to_usb()
-	self.connected_to_usb = False
+		
+	def __init__(self):
+		'''Initialize the data'''
+		
+		self.initialize_data()
+		
+		self.connected_to_usb = False
 
-    def initialize_data(self):
-        '''Initialize data'''
+	def initialize_data(self):
+		'''Initialize data'''
+	
+		self.data = []
+	
+		self.x1 = []
+		self.x1_norm = []
+		self.y1 = []
+		self.y1_norm = []
+	
+		self.x2 = []
+		self.x2_norm = []
+		self.y2 = []
+		self.y2_norm = []
+	
+		self.x3 = []
+		self.x3_norm = []
+		self.y3 = []
+		self.y3_norm = []
+	
+		self.x4 = []
+		self.x4_norm = []
+		self.y4 = []
+		self.y4_norm = []
+	
+		self.byte = []
+		self.byte_to_int = []
+		self.bit15array = []
+		self.valuearray = []
+	
+		self.x1_position = []
+		self.y1_position = []
+		self.position = np.zeros((1,8))
+		self.zero_spot = np.zeros((1,8))
 
-        self.data = []
-
-        self.x1 = []
-        self.x1_norm = []
-        self.y1 = []
-        self.y1_norm = []
-
-        self.x2 = []
-        self.x2_norm = []
-        self.y2 = []
-        self.y2_norm = []
-
-        self.x3 = []
-        self.x3_norm = []
-        self.y3 = []
-        self.y3_norm = []
-
-        self.x4 = []
-        self.x4_norm = []
-        self.y4 = []
-        self.y4_norm = []
-
-        self.byte = []
-        self.byte_to_int = []
-        self.bit15array = []
-        self.valuearray = []
-
-        self.x1_position = []
-        self.y1_position = []
-        self.position = np.zeros((1,8))
-	self.zero_spot = np.zeros((1,8))
-
-    def connect_to_usb(self):
-        '''Connect to USB feed'''
-
-        #list_of_usb_ports = serports.comports()
-
-        #self.port = '/dev/tty.usbserial-FTT3QDXK'	#Small PCB Converter
-        
-        #self.port = '/dev/tty.usbserial-FTT31FFA'	#Bigger Converter
-        #self.port = '/dev/tty.usbmodem411'
-        self.baudrate = 115200
-        self.parity = 'N'
-        self.rtscts = False
-        self.xonxoff = False
-        #self.ser = serial.Serial(self.port, self.baudrate, parity=self.parity, rtscts=self.rtscts, xonxoff=self.xonxoff, timeout=1)
-        try:
-        	self.ser = serial.Serial(self.port, self.baudrate)
-		print 'Setting up USB connection:'
-		print 'Port: ' + self.port
-		print 'Baudrate: ' + str(self.baudrate)
-		print 'Parity: ' + self.parity
-		print 'RTSCTS: ' + str(self.rtscts)
-		print 'XONXOFF: ' + str(self.xonxoff)    
-		self.connected_to_usb = True
-        except:
-        	print "Failed to make USB Connection"
+	def connect_to_usb(self):
+		'''Connect to USB feed'''
+	
+		#list_of_usb_ports = serports.comports()
+	
+		#self.port = '/dev/tty.usbserial-FTT3QDXK'	#Small PCB Converter
+		
+		#self.port = '/dev/tty.usbserial-FTT31FFA'	#Bigger Converter
+		#self.port = '/dev/tty.usbmodem411'
+		self.baudrate = 115200
+		self.parity = 'N'
+		self.rtscts = False
+		self.xonxoff = False
+		#self.ser = serial.Serial(self.port, self.baudrate, parity=self.parity, rtscts=self.rtscts, xonxoff=self.xonxoff, timeout=1)
+		try:
+			self.ser = serial.Serial(self.port, self.baudrate)
+			print 'Setting up USB connection:'
+			print 'Port: ' + self.port
+			print 'Baudrate: ' + str(self.baudrate)
+			print 'Parity: ' + self.parity
+			print 'RTSCTS: ' + str(self.rtscts)
+			print 'XONXOFF: ' + str(self.xonxoff)    
+			self.connected_to_usb = True
+		except:
+			print "Failed to make USB Connection"
         	
 
 
 
 
 
-    def calculate_positions(self):
-        '''Calculate laser spot position from diode values'''
-        #Calculate spot positions
-        self.x1_position = self.valuearray[1] / self.valuearray[0]
-        self.y1_position = self.valuearray[3] / self.valuearray[2]
-        self.x2_position = self.valuearray[5] / self.valuearray[4]
-        self.y2_position = self.valuearray[7] / self.valuearray[6]
-        self.x3_position = self.valuearray[9] / self.valuearray[8]
-        self.y3_position = self.valuearray[11] / self.valuearray[10]
-        self.x4_position = self.valuearray[13] / self.valuearray[12]
-        self.y4_position = self.valuearray[15] / self.valuearray[14]
+	def calculate_positions(self):
+		'''Calculate laser spot position from diode values'''
+		#Calculate spot positions
+		self.x1_position = self.valuearray[1] / self.valuearray[0]
+		self.y1_position = self.valuearray[3] / self.valuearray[2]
+		self.x2_position = self.valuearray[5] / self.valuearray[4]
+		self.y2_position = self.valuearray[7] / self.valuearray[6]
+		self.x3_position = self.valuearray[9] / self.valuearray[8]
+		self.y3_position = self.valuearray[11] / self.valuearray[10]
+		self.x4_position = self.valuearray[13] / self.valuearray[12]
+		self.y4_position = self.valuearray[15] / self.valuearray[14]
+	
+		position_list = [self.x1_position,self.y1_position,self.x2_position,self.y2_position,self.x3_position,self.y3_position,self.x4_position,self.y4_position]
+	
+		if np.size(self.position) > 80:
+			self.position = np.zeros((1,8))
+	
+		if np.size(self.position) == 8:
+			self.position[0,:] = position_list
+		else:
+			self.position = np.vstack([self.position,position_list])
 
-	position_list = [self.x1_position,self.y1_position,self.x2_position,self.y2_position,self.x3_position,self.y3_position,self.x4_position,self.y4_position]
+	def convert_from_twos_complement(self,value):
+		'''Convert from twos complement'''
+		#Check whether the input is positive (0 first bit) or negative (1 first bit)
+		#if value > 127:
+		if value >= (2**13):
+			#Zero the sign bit
+			#value ^= (1<<13) #was 7
+			
+			#Add 1
+			#value += 1
+			
+			#Make negative
+			#value = -value
+			value = ~(value ^ (2**14-1))		
+	
+		#print value
+		return value
+	
 
-	if np.size(self.position) > 80:
-	        self.position = np.zeros((1,8))
 
-	if np.size(self.position) == 8:
-		self.position[0,:] = position_list
-        else:
-        	self.position = np.vstack([self.position,position_list])
+	def sync_feed(self,sync_attempt):
+		'''Search for the frame sync byte'''
+		while sync_attempt < 100:
+	
+			#Read in a byte (will be an ascii character)
+			sync_test_byte = self.ser.read(1)
+			
+			#Convert byte to integer (needed to perform operations on)
+			sync_test_int = ord(sync_test_byte)
+			#print sync_test_int
+			
+			#Check to see if the first bit is a 1
+			#This happens when the overall integer value is >= 128
+			
+			if sync_test_int >= 128:
+				#print 'Sync in: ' + str(sync_attempt) + ' attempts'
+				return sync_test_byte
+			
+			sync_attempt += 1
+	
+		print 'Failed to sync in: ' + str(sync_attempt) + ' attempts'
+		#sys.exit()
+		return 0;
 
-    def convert_from_twos_complement(self,value):
-        '''Convert from twos complement'''
-        #Check whether the input is positive (0 first bit) or negative (1 first bit)
-        #if value > 127:
-	if value >= (2**13):
-		#Zero the sign bit
-		#value ^= (1<<13) #was 7
+
+	def read_cycle(self):
+		'''Reads a full 32 byte cycle'''
+		#print time.time()
+		sync_attempt=0
+	
+		self.cycle_byte = []
+		self.cycle_byte_to_int = []
+	
+		if (self.fake_data == False):
 		
-		#Add 1
-		#value += 1
+			   
+			if self.connected_to_usb == False:
+				self.connect_to_usb()
+			
+			
+			
+			if self.connected_to_usb == True:
+				self.cycle_byte.append(self.sync_feed(sync_attempt))		
+				self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))     
+				
+				if self.cycle_byte_to_int[0] < 128:
+					print "Failed to Sync. Exiting"
+					#return 0;
+					sys.exit()
+				
+				self.read_31_bytes()
+				
+				self.valuearray = self.cycle_valuearray
+				self.bit15array = self.cycle_bit15array
+				self.byte = self.cycle_byte
+				self.byte_to_int = self.cycle_byte_to_int
+				
+				self.calculate_positions()
+				
+				self.print_positions()
+			
+		else:
+			r = random.uniform(-3,3)
+			self.x1_position.append(r)
+			self.y1_position.append(r)
+			if np.size(self.position) == 0:
+				self.position[0,:] = np.ones(8)*r
+			else:
+				self.position = np.vstack([self.position,np.ones(8)*r])
+			
+
+	def read_31_bytes(self):
+		'''Read the next 31 bytes'''
 		
-		#Make negative
-		#value = -value
-		value = ~(value ^ (2**14-1))		
-
-	#print value
-        return value
-
-
-
-    def sync_feed(self,sync_attempt):
-        '''Search for the frame sync byte'''
-        while sync_attempt < 100:
-
-            #Read in a byte (will be an ascii character)
-            sync_test_byte = self.ser.read(1)
-
-            #Convert byte to integer (needed to perform operations on)
-            sync_test_int = ord(sync_test_byte)
-            #print sync_test_int
-
-            #Check to see if the first bit is a 1
-            #This happens when the overall integer value is >= 128
-
-            if sync_test_int >= 128:
-                #print 'Sync in: ' + str(sync_attempt) + ' attempts'
-                return sync_test_byte
-
-            sync_attempt += 1
-
-        print 'Failed to sync in: ' + str(sync_attempt) + ' attempts'
-        #sys.exit()
-        return 0;
-
-
-    def read_cycle(self):
-        '''Reads a full 32 byte cycle'''
-        #print time.time()
-        sync_attempt=0
-
-        self.cycle_byte = []
-        self.cycle_byte_to_int = []
-
-        if (self.fake_data == False):
-        
-                   
-            if self.connected_to_usb == False:
-            	self.connect_to_usb()
-
-
-
-            if self.connected_to_usb == True:
-		    self.cycle_byte.append(self.sync_feed(sync_attempt))		
-		    self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))     
-	     
-		    if self.cycle_byte_to_int[0] < 128:
-			print "Failed to Sync. Exiting"
-			#return 0;
-			sys.exit()
-	
-		    self.read_31_bytes()
-	
-		    self.valuearray = self.cycle_valuearray
-		    self.bit15array = self.cycle_bit15array
-		    self.byte = self.cycle_byte
-		    self.byte_to_int = self.cycle_byte_to_int
-	
-		    self.calculate_positions()
-	
-		    self.print_positions()
+		self.cycle_bit15array = []
+		self.cycle_valuearray = []
 		
-        else:
-            r = random.uniform(-3,3)
-            self.x1_position.append(r)
-            self.y1_position.append(r)
-            if np.size(self.position) == 0:
-            	self.position[0,:] = np.ones(8)*r
-            else:
-            	self.position = np.vstack([self.position,np.ones(8)*r])
+		for k in range(1,32):
+			self.cycle_byte.append(self.ser.read(1))
 
-        #return self.position
-
-    def read_31_bytes(self):
-        '''Read the next 31 bytes'''
-        
-        self.cycle_bit15array = []
-        self.cycle_valuearray = []
-
-        for k in range(1,32):
-            self.cycle_byte.append(self.ser.read(1))
-
-            # return an integer representing the Unicode code point of the character
-            self.cycle_byte_to_int.append(ord(self.cycle_byte[k]))
-            #print ord(self.cycle_byte[k])
-
-            if (k % 2 == 1):
-
-                #Each diode sends 2 bytes worth of data structured as:
-                #Frame-sync bit, B13 - B7
-                #Frame-sync bit, B6  - B0
-                #The data bits (B13 - B0) are arranged MSB - LSB
-
-                #Zero the frame sync
-                #(1 << 7) = 00000001 shifted 7 places to the left = 10000000 = 128
-                #Looks for common 1s between the variable and the complement of 128 (01111111)
-                #In other words the first bit is 0, and all the others are whatever they originally were
-                desynced1 = self.cycle_byte_to_int[k-1] & ~(1 << 7)
-                desynced2 = self.cycle_byte_to_int[k]   & ~(1 << 7)
-
-                #combine the two bitarrays
-                #Combines the first variable (least significant bits) with the second variable (most significant bits)
-                #Example: 1010101 | 1111111 = 11111111010101
-                self.cycle_bit15array.append(desynced1 | (desynced2 << 7))
-
-                #Put the bits back together and put it into a float variable for easy division
-                self.cycle_valuearray.append(float(self.convert_from_twos_complement(self.cycle_bit15array[(k-1)/2])))
+			# return an integer representing the Unicode code point of the character
+			self.cycle_byte_to_int.append(ord(self.cycle_byte[k]))
+			#print ord(self.cycle_byte[k])
+			
+			if (k % 2 == 1):
+			
+				#Each diode sends 2 bytes worth of data structured as:
+				#Frame-sync bit, B13 - B7
+				#Frame-sync bit, B6  - B0
+				#The data bits (B13 - B0) are arranged MSB - LSB
+				
+				#Zero the frame sync
+				#(1 << 7) = 00000001 shifted 7 places to the left = 10000000 = 128
+				#Looks for common 1s between the variable and the complement of 128 (01111111)
+				#In other words the first bit is 0, and all the others are whatever they originally were
+				desynced1 = self.cycle_byte_to_int[k-1] & ~(1 << 7)
+				desynced2 = self.cycle_byte_to_int[k]   & ~(1 << 7)
+				
+				#combine the two bitarrays
+				#Combines the first variable (least significant bits) with the second variable (most significant bits)
+				#Example: 1010101 | 1111111 = 11111111010101
+				self.cycle_bit15array.append(desynced1 | (desynced2 << 7))
+				
+				#Put the bits back together and put it into a float variable for easy division
+				self.cycle_valuearray.append(float(self.convert_from_twos_complement(self.cycle_bit15array[(k-1)/2])))
 
 
 
-    def print_positions(self):
-    
-        '''Print out all the variables'''
-        print 'Byte original bitarray bitarray bit14array valuearray'
-        for printinfo in range(32):
-            print printinfo
-            if printinfo % 2==0:
-                print self.byte[printinfo], '  ', self.byte_to_int[printinfo]
-
-            if printinfo % 2==1:
-                print self.byte[printinfo],'   ', self.byte_to_int[printinfo],'   ', self.bit15array[(printinfo-1)/2], '   ', self.valuearray[(printinfo-1)/2]
-
-        print
-        print 'Positions'
-        print self.x1_position
-        print self.y1_position
-        print self.x2_position
-        print self.y2_position
-        print self.x3_position
-        print self.y3_position
-        print self.x4_position
-        print self.y4_position
-        
-    def zero_diodes(self):
-    	
+	def print_positions(self):
+		'''Print out all the variables'''
+		print 'Byte original bitarray bitarray bit14array valuearray'
+		for printinfo in range(32):
+			print printinfo
+			if printinfo % 2==0:
+				print self.byte[printinfo], '  ', self.byte_to_int[printinfo]
+			
+			if printinfo % 2==1:
+				print self.byte[printinfo],'   ', self.byte_to_int[printinfo],'   ', self.bit15array[(printinfo-1)/2], '   ', self.valuearray[(printinfo-1)/2]
+			
+			print
+			print 'Positions'
+			print self.x1_position
+			print self.y1_position
+			print self.x2_position
+			print self.y2_position
+			print self.x3_position
+			print self.y3_position
+			print self.x4_position
+			print self.y4_position
+		
+	def zero_diodes(self):
+    		pass
     	
     	
 #     	if np.sum(self.position)==0:
@@ -323,20 +322,20 @@ class Position_data():
 	def save_data(self):
 		'''Save the data'''
 		
-		current_time = str(datetime.datetime.now())
-		
+		#current_time = str(datetime.datetime.now())
+		#Time since Jan 1, 1970 (verify with: time.gmtime(0))
+		current_time = str(time.time())
 		try:
 			self.save_file.write(current_time + ', ')
 			for k in range(8):
-				print str(self.position[-1,k])
-				self.save_file.write(str(self.position[-1,k])+', ')
+				self.save_file.write(str(self.position[-1,k]))
+				if k < 7:
+					self.save_file.write(', ')
 			
 			self.save_file.write('\n')
 		except:
 			print "Error in save loop - data probably not saved"
 			
-		#print "Saved Data: ", data_tosave_filename
-
 
 
 
@@ -366,7 +365,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		
 		#Define the plot timer that updates the diodes / map
 		self._timer = self.fig1.canvas.new_timer()
-	        self._timer.interval = 100
+	        self._timer.interval = 110
         	self._timer.add_callback(self.update_display)
         	
         	#Give this class access to the serial data class
@@ -386,9 +385,15 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.main_gui.show()
         
         def start(self):
+		if self.record == False:
+			self.statusbar.showMessage("Monitoring Diodes")
+		else:
+			self.statusbar.showMessage("Monitoring Diodes - Recording data to: "+self.save_filename)
+
 		self._timer.start()		
 
 	def pause(self):
+		self.statusbar.showMessage("Monitoring Paused")
 		self._timer.stop()
 		
 	def record(self):
@@ -401,37 +406,36 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			try:
 				#Close the save file
 				self._data.save_file.close()
+				self.statusbar.showMessage("Data saved to file: " + self.save_filename)
+
 			except:
-				print "Error closing save file - data may be lost"
+				self.statusbar.showMessage("Error closing save file - data may be lost")
 		else:
 			#Start recording
 			self.record = True
 			try:
 				#Determine the save filename from the filename_box	
-				save_filename = self.filename_box.text()
-				
-				
-				print 'trying to open file: ' + save_filename
+				self.save_filename = self.filename_box.text()
 				
 				#Should we write the header line in the file (line 1)?
 				write_header = True
-				
-				if os.path.isfile(save_filename):
+
+				if os.path.isfile(self.save_filename):
 					#File already exists, don't need the header line
 					write_header = False
-				
 				#Open the file to save to
-				self._data.save_file = open(save_filename,'a')
+				self._data.save_file = open(self.save_filename,'a')
 				
 				#Write the header if a new file
 				if write_header:
-					self._data.save_file.write("X1, Y1, X2, Y2, X3, Y3, X4, Y4 \n")
+					self._data.save_file.write("Time [seconds since Jan 1, 1970], X1 [mm], Y1 [mm], X2 [mm], Y2 [mm], X3 [mm], Y3 [mm], X4 [mm], Y4 [mm] \n")
+				self.statusbar.showMessage("Opened file for writing: " + self.save_filename)
 			except:
-				print "Error opening file to save - data won't be saved"
+				self.statusbar.showMessage("Error opening file to save - data won't be saved")
 			
 		
 	def specify_filename(self):
-		
+		'''Determine the filename for the save file'''
 		fname = QtGui.QFileDialog.getSaveFileName(caption="Select filename to record data to", directory="/Users/Oakley/Desktop/")
 
 		#Add the .txt extension if it's not already there
@@ -556,6 +560,14 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		item = QtGui.QListWidgetItem()
 		self.listWidget.addItem(item)
 		self.verticalLayout_2.addWidget(self.listWidget)
+		self.data_speed_label = QtGui.QLabel(self.widget)
+		font = QtGui.QFont()
+		font.setPointSize(18)
+		font.setBold(True)
+		font.setWeight(75)
+		self.data_speed_label.setFont(font)
+		self.data_speed_label.setObjectName(_fromUtf8("data_speed_label"))
+		self.verticalLayout_2.addWidget(self.data_speed_label)
 		MainWindow.setCentralWidget(self.centralwidget)
 		self.menubar = QtGui.QMenuBar(MainWindow)
 		self.menubar.setGeometry(QtCore.QRect(0, 0, 998, 22))
@@ -738,7 +750,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 	def update_diodes(self):
 		'''Update the diode maps'''
 		self.ts = time.time()
-		print(self.ts - self.ts_old)
+		self.data_speed_label.setText(QtGui.QApplication.translate("MainWindow", "Data Rate = " + str(round(1. / (self.ts-self.ts_old),1)) + " Hz", None, QtGui.QApplication.UnicodeUTF8))
 		self.ts_old = self.ts
 
 		#x1 = newdata[0][:]
