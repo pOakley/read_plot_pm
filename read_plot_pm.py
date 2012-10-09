@@ -45,7 +45,11 @@ class Position_data():
 		self.initialize_data()
 		self.num_records = 0
 		self.connected_to_usb = False
-
+		
+		#These have to be separate so they don't get cleared when the clear plot button is clicked
+		self._data_timestamp_all = []
+		self._position_all = np.zeros((1,8))
+		
 	def initialize_data(self):
 		'''Initialize data'''
 	
@@ -80,7 +84,6 @@ class Position_data():
 		self.x1_position = []
 		self.y1_position = []
 		self.position = np.zeros((1,8))
-		self._position_all = np.zeros((1,8))
 		self.zero_spot = np.zeros((1,8))
 
 		
@@ -142,6 +145,7 @@ class Position_data():
 			self._position_all = np.vstack([self._position_all,position_list])
 		
 		self.data_timestamp.append(time.time())
+		self._data_timestamp_all.append(time.time())
 
 	def convert_from_twos_complement(self,value):
 		'''Convert from twos complement'''
@@ -239,6 +243,7 @@ class Position_data():
 				self._position_all = np.vstack([self._position_all,np.ones(8)*r])
 			
 			self.data_timestamp.append(time.time())
+			self._data_timestamp_all.append(time.time())
 			
 
 	def read_31_bytes(self):
@@ -330,7 +335,7 @@ class Position_data():
 			self.emergency_save_file.write("Time [seconds since Jan 1, 1970], X1 [mm], Y1 [mm], X2 [mm], Y2 [mm], X3 [mm], Y3 [mm], X4 [mm], Y4 [mm] \n")
 
 			for points in range(np.size(self._position_all,0)):
-				self.emergency_save_file.write(str(self.data_timestamp[points]) + ', ')
+				self.emergency_save_file.write(str(self._data_timestamp_all[points]) + ', ')
 				for loc in range(np.size(self._position_all,1)):
 					self.emergency_save_file.write(str(self._position_all[points,loc]))
 					if loc < 7:
