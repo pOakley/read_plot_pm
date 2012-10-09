@@ -1,25 +1,3 @@
-#Data Format
-
-#Inputs
-#   live_data: Set to 1 for reading data off the control box in real time. Set to 0 for reading a previously recorded filename
-#   Filename: filename to read if live_data = 0, filename to save if live_data = 1
-
-#Outputs
-#   None
-
-#Save files
-#   Saves the data in a csv file (using the filename input) if reading data live_data
-#   Saves the figure plots (2 of them) regardless of live_data.
-#   Note - program will not overwrite existing files
-
-#Things to fix
-#   Better interactivity with selecting a USB port
-#   Right now the program parses everything into separate variables (x1,y1,x2,y2, etc.) for ease of understand. This is likely inefficient and should be changed later
-#   Need the magic code for coordinate transformation
-#   Is sys.exit() the proper way to exit a program?
-
-#==========================================Import necessary libraries
-#import matplotlib.pyplot as plt
 
 #python -m serial.tools.miniterm --port='/dev/tty.usbserial-FTT3QDXK' --baud=115200
 
@@ -61,7 +39,6 @@ class Diode():
 class Position_data():
 	
 
-		
 	def __init__(self):
 		'''Initialize the data'''
 		
@@ -113,10 +90,9 @@ class Position_data():
 	
 		#list_of_usb_ports = serports.comports()
 	
-		#self.port = '/dev/tty.usbserial-FTT3QDXK'	#Small PCB Converter
-		
+		#self.port = '/dev/tty.usbserial-FTT3QDXK'	#Small PCB Converter		
 		#self.port = '/dev/tty.usbserial-FTT31FFA'	#Bigger Converter
-		#self.port = '/dev/tty.usbmodem411'
+
 		self.baudrate = 115200
 		self.parity = 'N'
 		self.rtscts = False
@@ -152,15 +128,15 @@ class Position_data():
 	
 		position_list = [self.x1_position,self.y1_position,self.x2_position,self.y2_position,self.x3_position,self.y3_position,self.x4_position,self.y4_position]
 	
-		if np.size(self.position) > 80:
-			self.position = np.zeros((1,8))
+		#if np.size(self.position) > 80:
+		#	self.position = np.zeros((1,8))
 	
-		if np.size(self.position) == 8:
+		if (np.size(self.position) == 8 and np.sum(self.position) == 0.0):
 			self.position[0,:] = position_list
 		else:
 			self.position = np.vstack([self.position,position_list])
 		
-		if np.size(self._position_all) == 8:
+		if (np.size(self._position_all) == 8 and np.sum(self._position_all) == 0.0):
 			self._position_all = position_list
 		else:
 			self._position_all = np.vstack([self._position_all,position_list])
@@ -250,9 +226,7 @@ class Position_data():
 			r = random.uniform(-3,3)
 			self.x1_position.append(r)
 			self.y1_position.append(r)
-			
 
-			
 			if (np.size(self.position) == 8 and np.sum(self.position) == 0.0):
 				self.position[0,:] = np.ones(8)*r
 			else:
@@ -346,6 +320,7 @@ class Position_data():
 			print "Error in save loop - data probably not saved"
 			
 	def save_all_data(self, fname):
+		'''Save all the data since the program was open'''
 		try:
 			#Open file
 			self.emergency_save_filename = fname
@@ -416,6 +391,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
         
 
 	def setupUi(self, MainWindow):
+		'''Setup the GUI window'''
 		MainWindow.setObjectName(_fromUtf8("MainWindow"))
 		MainWindow.resize(998, 780)
 		self.centralwidget = QtGui.QWidget(MainWindow)
@@ -545,7 +521,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.statusbar.setObjectName(_fromUtf8("statusbar"))
 		MainWindow.setStatusBar(self.statusbar)
 		
-
+		#Setup the menu system
 		self.menubar = QtGui.QMenuBar(MainWindow)
 		self.menubar.setGeometry(QtCore.QRect(0, 0, 998, 22))
 		self.menubar.setObjectName(_fromUtf8("menubar"))
@@ -557,6 +533,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.menuFile.addAction(self.actionEmergency_Save_All)
 		self.menubar.addAction(self.menuFile.menuAction())
 
+		#Connect actions with the functions they call
 	        QtCore.QObject.connect(self.actionEmergency_Save_All, QtCore.SIGNAL(_fromUtf8("triggered()")), self.emergency_save)
 		QtCore.QObject.connect(self.play_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.startstop)
 		QtCore.QObject.connect(self.record_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.record)
@@ -565,7 +542,8 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		QtCore.QObject.connect(self.realtime_plot_checkbox, QtCore.SIGNAL(_fromUtf8("stateChanged(int)")), self.change_record_speed)
 
 	def retranslateUi(self, MainWindow):
-		MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "MainWindow", None, QtGui.QApplication.UnicodeUTF8))
+		'''Finish setting up the GUI'''
+		MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "Micro-X Position Diode Aquisition Tool", None, QtGui.QApplication.UnicodeUTF8))
 		self.datamode_label.setText(QtGui.QApplication.translate("MainWindow", "Data Mode", None, QtGui.QApplication.UnicodeUTF8))
 		self.livedata_button.setText(QtGui.QApplication.translate("MainWindow", "Live Data", None, QtGui.QApplication.UnicodeUTF8))
 		self.existingdata_button.setText(QtGui.QApplication.translate("MainWindow", "Existing Data", None, QtGui.QApplication.UnicodeUTF8))
@@ -600,6 +578,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.listWidget.setSortingEnabled(__sortingEnabled)
 
         def startstop(self):
+        	'''Start or stop the data taking'''
 		if self.playing == False:
 			if self.record == False:
 				self.statusbar.showMessage("Monitoring Diodes")
@@ -614,12 +593,16 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			self.playing = False
 			
 	def change_record_speed(self):
+		'''Change the speed of the data taking depending on if plots are generated'''
 		if self.realtime_plot_checkbox.isChecked():
+			#Slow speed so the plots have time to draw
 			self._timer.interval = 110
 		else:
+			#Fast speed since there's no need for plotting
 			self._timer.interval = 11
 	
 	def clear_plot(self):
+		'''Clear the plots'''
 		
 		#Clear all the stored data
 		self._data.initialize_data()
@@ -641,6 +624,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.canvas2.draw()		
 					
 	def record(self):
+		'''Start or stop recording data'''
 		if self.record == True:
 			#Data is already recording, turn recording off
 
@@ -697,6 +681,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#self._data.zero_diodes()
 
 	def emergency_save(self):
+		'''Emergency save all data since the program was opened'''
 		self.emergency_save_filename = self.specify_filename(normal=False)
 		self._data.save_all_data(self.emergency_save_filename)
 		
@@ -850,6 +835,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
 
 	def calculate_shift(self):
+		'''Calculate how much the FEA has moved'''
 		pass
 
 
@@ -892,30 +878,9 @@ if __name__ == "__main__":
 		_fromUtf8 = lambda s: s
 	
 	#Create class instances
-	#plt.ion()
-	
 	data    = Position_data()
-	#display = Position_plots()
 	
-	sync_attempt = 0
-	read_cycle = 1
-	
-	#Using the Position Plots Class fig1, get data from the Position Data class (read_cycle function)
-	#and display it using the Position Plots class (update_display function)
-	#Do this every X milliseconds
-	#ani = animation.FuncAnimation(display.fig1, display.update_display, data.read_cycle, interval=1000, blit=True)
 	
 	app = QtGui.QApplication(sys.argv)
 	display=Position_plots(data)
-	#display.show()
-	
-	#plt.draw()
-	#print 'poop'
-	#for read_times in range(10):
-	#	display.update_display(data.read_cycle())
-	#	time.sleep(.2)
-		
-	#Animation doesn't happen without this
-	
-	
 	sys.exit(app.exec_())
