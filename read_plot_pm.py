@@ -24,7 +24,6 @@
 #python -m serial.tools.miniterm --port='/dev/tty.usbserial-FTT3QDXK' --baud=115200
 
 import numpy as np
-#from time import sleep
 
 import random
 
@@ -37,7 +36,6 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
 import serial
 import serial.tools.list_ports as serports
-#import struct
 import math
 import os.path
 import sys
@@ -68,14 +66,15 @@ class Position_data():
 		'''Initialize the data'''
 		
 		self.initialize_data()
-		
+		self.num_records = 0
 		self.connected_to_usb = False
 
 	def initialize_data(self):
 		'''Initialize data'''
 	
 		self.data = []
-	
+		self.data_timestamp = []
+		
 		self.x1 = []
 		self.x1_norm = []
 		self.y1 = []
@@ -104,7 +103,10 @@ class Position_data():
 		self.x1_position = []
 		self.y1_position = []
 		self.position = np.zeros((1,8))
+		self._position_all = np.zeros((1,8))
 		self.zero_spot = np.zeros((1,8))
+
+		
 
 	def connect_to_usb(self):
 		'''Connect to USB feed'''
@@ -119,7 +121,6 @@ class Position_data():
 		self.parity = 'N'
 		self.rtscts = False
 		self.xonxoff = False
-		#self.ser = serial.Serial(self.port, self.baudrate, parity=self.parity, rtscts=self.rtscts, xonxoff=self.xonxoff, timeout=1)
 		try:
 			self.ser = serial.Serial(self.port, self.baudrate)
 			print 'Setting up USB connection:'
@@ -158,6 +159,13 @@ class Position_data():
 			self.position[0,:] = position_list
 		else:
 			self.position = np.vstack([self.position,position_list])
+		
+		if np.size(self._position_all) == 8:
+			self._position_all = position_list
+		else:
+			self._position_all = np.vstack([self._position_all,position_list])
+		
+		self.data_timestamp.append(time.time())
 
 	def convert_from_twos_complement(self,value):
 		'''Convert from twos complement'''
@@ -174,7 +182,6 @@ class Position_data():
 			#value = -value
 			value = ~(value ^ (2**14-1))		
 	
-		#print value
 		return value
 	
 
@@ -206,7 +213,6 @@ class Position_data():
 
 	def read_cycle(self):
 		'''Reads a full 32 byte cycle'''
-		#print time.time()
 		sync_attempt=0
 	
 		self.cycle_byte = []
@@ -244,10 +250,21 @@ class Position_data():
 			r = random.uniform(-3,3)
 			self.x1_position.append(r)
 			self.y1_position.append(r)
-			if np.size(self.position) == 0:
+			
+
+			
+			if (np.size(self.position) == 8 and np.sum(self.position) == 0.0):
 				self.position[0,:] = np.ones(8)*r
 			else:
 				self.position = np.vstack([self.position,np.ones(8)*r])
+
+			
+			if (np.size(self._position_all) == 8 and np.sum(self._position_all) == 0.0):
+				self._position_all[0,:] = np.ones(8)*r
+			else:
+				self._position_all = np.vstack([self._position_all,np.ones(8)*r])
+			
+			self.data_timestamp.append(time.time())
 			
 
 	def read_31_bytes(self):
@@ -308,36 +325,49 @@ class Position_data():
 			print self.y3_position
 			print self.x4_position
 			print self.y4_position
-		
-	def zero_diodes(self):
-    		pass
-    	
-    	
-#     	if np.sum(self.position)==0:
-#     		self.zero_spot = np.zeros((1,8))
-#     	else:
-#     		self.zero_spot = self.position[-1,:]	
-#     	
+		  	
 	
 	def save_data(self):
 		'''Save the data'''
 		
 		#current_time = str(datetime.datetime.now())
 		#Time since Jan 1, 1970 (verify with: time.gmtime(0))
-		current_time = str(time.time())
+		#current_time = str(time.time())
 		try:
-			self.save_file.write(current_time + ', ')
+			self.save_file.write(str(self.data_timestamp[-1]) + ', ')
 			for k in range(8):
 				self.save_file.write(str(self.position[-1,k]))
 				if k < 7:
 					self.save_file.write(', ')
 			
 			self.save_file.write('\n')
+			self.num_records += 1
 		except:
 			print "Error in save loop - data probably not saved"
 			
+	def save_all_data(self, fname):
+		try:
+			#Open file
+			self.emergency_save_filename = fname
+			self.emergency_save_file = open(self.emergency_save_filename,'a')
 
+			#Loop over data
+			self.emergency_save_file.write("Time [seconds since Jan 1, 1970], X1 [mm], Y1 [mm], X2 [mm], Y2 [mm], X3 [mm], Y3 [mm], X4 [mm], Y4 [mm] \n")
 
+			for points in range(np.size(self._position_all,0)):
+				self.emergency_save_file.write(str(self.data_timestamp[points]) + ', ')
+				for loc in range(np.size(self._position_all,1)):
+					self.emergency_save_file.write(str(self._position_all[points,loc]))
+					if loc < 7:
+						self.emergency_save_file.write(', ')
+				self.emergency_save_file.write('\n')
+			
+			#Close the file	
+			self.emergency_save_file.close()
+		except:
+			print "Error in save loop - data probably not saved"
+
+			
 
 class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
@@ -348,18 +378,20 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.ts_old = time.time()
 		self.ts = time.time()
 		
-		#GUI stuff
+        	#Give this class access to the serial data class
+        	self._data = data
+       
+       		#GUI stuff
 		self.main_gui = QtGui.QMainWindow()
 		self.setupUi(self.main_gui)
 		
 		#Plot stuff
 		self.setup_diodes()
 		self.setup_grid()
-# 		self.x = []
-# 		self.y = []
 
 		#More GUI stuff
 		self.record = False
+		self.playing = False
 		self.retranslateUi(self.main_gui)
 		QtCore.QMetaObject.connectSlotsByName(self.main_gui)
 		
@@ -368,9 +400,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 	        self._timer.interval = 110
         	self._timer.add_callback(self.update_display)
         	
-        	#Give this class access to the serial data class
-        	self._data = data
-        	
+ 	
         	#Color stuff (doesn't work right now)
 		self._color_wheel = ['k','r','b','g','m']
 		self._color_index = 0
@@ -384,71 +414,6 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#Show the GUI
 		self.main_gui.show()
         
-        def start(self):
-		if self.record == False:
-			self.statusbar.showMessage("Monitoring Diodes")
-		else:
-			self.statusbar.showMessage("Monitoring Diodes - Recording data to: "+self.save_filename)
-
-		self._timer.start()		
-
-	def pause(self):
-		self.statusbar.showMessage("Monitoring Paused")
-		self._timer.stop()
-		
-	def record(self):
-		if self.record == True:
-			#Data is already recording, turn recording off
-
-			#Stop recording
-			self.record = False
-			
-			try:
-				#Close the save file
-				self._data.save_file.close()
-				self.statusbar.showMessage("Data saved to file: " + self.save_filename)
-
-			except:
-				self.statusbar.showMessage("Error closing save file - data may be lost")
-		else:
-			#Start recording
-			self.record = True
-			try:
-				#Determine the save filename from the filename_box	
-				self.save_filename = self.filename_box.text()
-				
-				#Should we write the header line in the file (line 1)?
-				write_header = True
-
-				if os.path.isfile(self.save_filename):
-					#File already exists, don't need the header line
-					write_header = False
-				#Open the file to save to
-				self._data.save_file = open(self.save_filename,'a')
-				
-				#Write the header if a new file
-				if write_header:
-					self._data.save_file.write("Time [seconds since Jan 1, 1970], X1 [mm], Y1 [mm], X2 [mm], Y2 [mm], X3 [mm], Y3 [mm], X4 [mm], Y4 [mm] \n")
-				self.statusbar.showMessage("Opened file for writing: " + self.save_filename)
-			except:
-				self.statusbar.showMessage("Error opening file to save - data won't be saved")
-			
-		
-	def specify_filename(self):
-		'''Determine the filename for the save file'''
-		fname = QtGui.QFileDialog.getSaveFileName(caption="Select filename to record data to", directory="/Users/Oakley/Desktop/")
-
-		#Add the .txt extension if it's not already there
-		if fname[-4:] != ".txt":
-			fname += ".txt"
-			
-		self.filename_box.setText(fname)
-	
-		#Advance the color wheel
-		self._color_index += 1
-		
-		#Find the new zero point from the data class
-		self._data.zero_diodes()
 
 	def setupUi(self, MainWindow):
 		MainWindow.setObjectName(_fromUtf8("MainWindow"))
@@ -489,6 +454,9 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.fakedata_button.setChecked(True)
 		self.fakedata_button.setObjectName(_fromUtf8("fakedata_button"))
 		self.verticalLayout.addWidget(self.fakedata_button)
+		self.realtime_plot_checkbox = QtGui.QCheckBox("Plot realtime data", self.widget)
+		self.realtime_plot_checkbox.setChecked(True)
+		self.verticalLayout.addWidget(self.realtime_plot_checkbox)
 		self.verticalLayout_2.addLayout(self.verticalLayout)
 		self.line = QtGui.QFrame(self.widget)
 		self.line.setFrameShape(QtGui.QFrame.HLine)
@@ -505,19 +473,12 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.verticalLayout_2.addWidget(self.recorddata_label)
 		self.horizontalLayout = QtGui.QHBoxLayout()
 		self.horizontalLayout.setObjectName(_fromUtf8("horizontalLayout"))
-		self.pause_button = QtGui.QToolButton(self.widget)
-		self.pause_button.setText(_fromUtf8(""))
-		icon = QtGui.QIcon()
-		icon.addPixmap(QtGui.QPixmap(_fromUtf8("blue_pause_button.jpeg")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
-		self.pause_button.setIcon(icon)
-		self.pause_button.setIconSize(QtCore.QSize(32, 32))
-		self.pause_button.setObjectName(_fromUtf8("pause_button"))
-		self.horizontalLayout.addWidget(self.pause_button)
 		self.play_button = QtGui.QToolButton(self.widget)
 		self.play_button.setText(_fromUtf8(""))
 		icon1 = QtGui.QIcon()
 		icon1.addPixmap(QtGui.QPixmap(_fromUtf8("blue_play_button.jpeg")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
 		self.play_button.setIcon(icon1)
+		self.play_button.setCheckable(True)
 		self.play_button.setIconSize(QtCore.QSize(32, 32))
 		self.play_button.setObjectName(_fromUtf8("play_button"))
 		self.horizontalLayout.addWidget(self.play_button)
@@ -568,40 +529,65 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.data_speed_label.setFont(font)
 		self.data_speed_label.setObjectName(_fromUtf8("data_speed_label"))
 		self.verticalLayout_2.addWidget(self.data_speed_label)
+		self.num_records_label = QtGui.QLabel(self.widget)
+		font = QtGui.QFont()
+		font.setPointSize(18)
+		font.setBold(True)
+		font.setWeight(75)
+		self.num_records_label.setFont(font)
+		self.num_records_label.setObjectName(_fromUtf8("num_records_label"))
+		self.verticalLayout_2.addWidget(self.num_records_label)
+		self.clearplot_button = QtGui.QPushButton(self.widget)
+		self.clearplot_button.setObjectName(_fromUtf8("clearplot_button"))
+		self.verticalLayout_2.addWidget(self.clearplot_button)
 		MainWindow.setCentralWidget(self.centralwidget)
-		self.menubar = QtGui.QMenuBar(MainWindow)
-		self.menubar.setGeometry(QtCore.QRect(0, 0, 998, 22))
-		self.menubar.setObjectName(_fromUtf8("menubar"))
-		MainWindow.setMenuBar(self.menubar)
 		self.statusbar = QtGui.QStatusBar(MainWindow)
 		self.statusbar.setObjectName(_fromUtf8("statusbar"))
 		MainWindow.setStatusBar(self.statusbar)
 		
 
-		QtCore.QObject.connect(self.play_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.start)
-		QtCore.QObject.connect(self.record_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.record)
-		QtCore.QObject.connect(self.pause_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.pause)
-		QtCore.QObject.connect(self.filename_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.specify_filename)
+		self.menubar = QtGui.QMenuBar(MainWindow)
+		self.menubar.setGeometry(QtCore.QRect(0, 0, 998, 22))
+		self.menubar.setObjectName(_fromUtf8("menubar"))
+		self.menuFile = QtGui.QMenu(self.menubar)
+		self.menuFile.setObjectName(_fromUtf8("menuFile"))
+		MainWindow.setMenuBar(self.menubar)
+		self.actionEmergency_Save_All = QtGui.QAction(MainWindow)
+		self.actionEmergency_Save_All.setObjectName(_fromUtf8("actionEmergency_Save_All"))
+		self.menuFile.addAction(self.actionEmergency_Save_All)
+		self.menubar.addAction(self.menuFile.menuAction())
 
-		
+	        QtCore.QObject.connect(self.actionEmergency_Save_All, QtCore.SIGNAL(_fromUtf8("triggered()")), self.emergency_save)
+		QtCore.QObject.connect(self.play_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.startstop)
+		QtCore.QObject.connect(self.record_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.record)
+		QtCore.QObject.connect(self.filename_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.specify_filename)
+		QtCore.QObject.connect(self.clearplot_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.clear_plot)
+		QtCore.QObject.connect(self.realtime_plot_checkbox, QtCore.SIGNAL(_fromUtf8("stateChanged(int)")), self.change_record_speed)
+
 	def retranslateUi(self, MainWindow):
 		MainWindow.setWindowTitle(QtGui.QApplication.translate("MainWindow", "MainWindow", None, QtGui.QApplication.UnicodeUTF8))
 		self.datamode_label.setText(QtGui.QApplication.translate("MainWindow", "Data Mode", None, QtGui.QApplication.UnicodeUTF8))
-		self.livedata_button.setText(QtGui.QApplication.translate("MainWindow", "Plot Live Data", None, QtGui.QApplication.UnicodeUTF8))
-		self.existingdata_button.setText(QtGui.QApplication.translate("MainWindow", "Plot Existing Data", None, QtGui.QApplication.UnicodeUTF8))
-		self.fakedata_button.setText(QtGui.QApplication.translate("MainWindow", "Plot Fake Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.livedata_button.setText(QtGui.QApplication.translate("MainWindow", "Live Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.existingdata_button.setText(QtGui.QApplication.translate("MainWindow", "Existing Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.fakedata_button.setText(QtGui.QApplication.translate("MainWindow", "Fake Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.fakedata_button.setText(QtGui.QApplication.translate("MainWindow", "Fake Data", None, QtGui.QApplication.UnicodeUTF8))
 		self.recorddata_label.setText(QtGui.QApplication.translate("MainWindow", "Record Data", None, QtGui.QApplication.UnicodeUTF8))
-		self.pause_button.setToolTip(QtGui.QApplication.translate("MainWindow", "Pause recording", None, QtGui.QApplication.UnicodeUTF8))
 		self.record_button.setToolTip(QtGui.QApplication.translate("MainWindow", "Start / resume recording", None, QtGui.QApplication.UnicodeUTF8))
 		self.filename_box.setText(QtGui.QApplication.translate("MainWindow", "/Users/Oakley/Desktop/deleteme.txt", None, QtGui.QApplication.UnicodeUTF8))
 		self.filename_button.setText(QtGui.QApplication.translate("MainWindow", "Specify Filename", None, QtGui.QApplication.UnicodeUTF8))
+		self.clearplot_button.setText(QtGui.QApplication.translate("MainWindow", "Clear Plots", None, QtGui.QApplication.UnicodeUTF8))
 		self.serialport_label.setText(QtGui.QApplication.translate("MainWindow", "Serial Ports", None, QtGui.QApplication.UnicodeUTF8))
+		self.data_speed_label.setText(QtGui.QApplication.translate("MainWindow", "Data Rate = 0 Hz", None, QtGui.QApplication.UnicodeUTF8))
+		self.num_records_label.setText(QtGui.QApplication.translate("MainWindow", "Records Stored = 0", None, QtGui.QApplication.UnicodeUTF8))
+
+		
 		__sortingEnabled = self.listWidget.isSortingEnabled()
 		self.listWidget.setSortingEnabled(False)
-		
+		self.menuFile.setTitle(QtGui.QApplication.translate("MainWindow", "File", None, QtGui.QApplication.UnicodeUTF8))
+		self.actionEmergency_Save_All.setText(QtGui.QApplication.translate("MainWindow", "Emergency Save All", None, QtGui.QApplication.UnicodeUTF8))
+
 		list_of_usb_ports = serports.comports()
-		#ports = list_of_usb_ports.split(',')
-		#print ports
+
 		counter = 0
 		for usb_option in list_of_usb_ports:
 			usb_option = usb_option[0]
@@ -611,78 +597,109 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			item.setText(QtGui.QApplication.translate("MainWindow", usb_option, None, QtGui.QApplication.UnicodeUTF8))
 			counter += 1
 		self.listWidget.item(counter-1).setSelected(True)
-		#self.listWidget.setItemSelected(self.listWidget.item(counter-1), True)
 		self.listWidget.setSortingEnabled(__sortingEnabled)
 
-	def setup_grid(self):
-		'''Set up the figure for plotting the pixel grid'''
-		
-		self.fig2 = Figure()
-		self.fig2.set_size_inches(8,2.5)
-		self.canvas2 = FigureCanvas(self.fig2)
-		self.canvas2.setParent(self.pixel_plot_widget)
-		self.pixel_map = self.fig2.add_subplot(111)
-		
-		self.pixel_plot_new = self.pixel_map.plot(0,0,color='r')
-		self.pixel_plot = self.pixel_map.plot(0,0,color='k')
-		
-		self.initialize_grid_values()
-		self.update_grid(0,0,0,'r')
-		self.pixel_map.set_xlim([-10,10])
-		self.pixel_map.set_ylim([-10,10])
-		self.pixel_map.set_title('Pixel Map (APPROXIMATION ONLY!)')
+        def startstop(self):
+		if self.playing == False:
+			if self.record == False:
+				self.statusbar.showMessage("Monitoring Diodes")
+			else:
+				self.statusbar.showMessage("Monitoring Diodes - Recording data to: "+self.save_filename)
 
-
-	def initialize_grid_values(self):
-		'''Initialize the pixel grid'''
-		self.angle = 0		
-		self.rotation_matrix = [[math.cos(self.angle),-math.sin(self.angle)],[math.sin(self.angle),math.cos(self.angle)]]
-
-		xgrid = []
-		ygrid = []
-		
-		for k in range(6,-1,-1):
+			self._timer.start()		
+			self.playing = True
+		else:
+			self.statusbar.showMessage("Monitoring Paused")
+			self._timer.stop()
+			self.playing = False
 			
-			x_addition = np.concatenate((np.arange(-6,7),np.arange(-6,7)[::-1]))
-			xgrid = np.concatenate((xgrid, x_addition))
-			y_addition = np.concatenate((np.ones(13)*k,np.ones(13)*(k-6)))
-			ygrid = np.concatenate((ygrid,y_addition))
-			
-		for k in range(-6,1,1):
-			x_addition = np.concatenate((np.ones(13)*k,np.ones(13)*(k+6)))
-			xgrid = np.concatenate((xgrid, x_addition))
-			y_addition = np.concatenate((np.arange(-6,7),np.arange(-6,7)[::-1]))
-			ygrid = np.concatenate((ygrid, y_addition))
-
-		self.xgrid = xgrid
-		self.ygrid = ygrid
+	def change_record_speed(self):
+		if self.realtime_plot_checkbox.isChecked():
+			self._timer.interval = 110
+		else:
+			self._timer.interval = 11
 	
-	def update_grid(self,x,y,angle,color):
-		'''Plot the pixel grid'''
-				
-		self.rotation_matrix = [[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]]
-
-		self.xgrid_new = []
-		self.ygrid_new = []
-
-		#Reshape the position pairs to be a 2 column array
-		original_pairs = np.transpose(np.vstack((self.xgrid,self.ygrid)))
+	def clear_plot(self):
 		
-		#Calculate the new pairs after applying the rotation matrix
-		new_pairs = np.dot(original_pairs,self.rotation_matrix)
-
-		#Break it back up into individual arrays for plotting
-		self.xgrid_new = new_pairs[:,0]
-		self.ygrid_new = new_pairs[:,1]
+		#Clear all the stored data
+		self._data.initialize_data()
 		
-		#Assign the new data to the array for plotting
-		self.pixel_plot_new[0].set_data(self.xgrid_new,self.ygrid_new)
+		#Clear the diode plots
+		self.diode1_plot[0].set_data(self._data.position[:,0], self._data.position[:,1])
+		self.diode2_plot[0].set_data(self._data.position[:,2], self._data.position[:,3])
+		self.diode3_plot[0].set_data(self._data.position[:,4], self._data.position[:,5])
+		self.diode4_plot[0].set_data(self._data.position[:,6], self._data.position[:,7])
+
+		#Redisplay the plots		
+		self.canvas.draw()
+
+		#Clear the pixel map plot
+		self.pixel_plot_new[0].set_data(self.xgrid,self.ygrid)
 		self.pixel_plot[0].set_data(self.xgrid,self.ygrid)
 		
 		#Plot the two grids
-		self.canvas2.draw()
-		
+		self.canvas2.draw()		
+					
+	def record(self):
+		if self.record == True:
+			#Data is already recording, turn recording off
 
+			#Stop recording
+			self.record = False
+			
+			try:
+				#Close the save file
+				self._data.save_file.close()
+				self.statusbar.showMessage("Data saved to file: " + self.save_filename)
+
+			except:
+				self.statusbar.showMessage("Error closing save file - data may be lost")
+		else:
+			#Start recording
+			self.record = True
+			try:
+				#Determine the save filename from the filename_box	
+				self.save_filename = self.filename_box.text()
+				
+				#Should we write the header line in the file (line 1)?
+				write_header = True
+
+				if os.path.isfile(self.save_filename):
+					#File already exists, don't need the header line
+					write_header = False
+				#Open the file to save to
+				self._data.save_file = open(self.save_filename,'a')
+				
+				#Write the header if a new file
+				if write_header:
+					self._data.save_file.write("Time [seconds since Jan 1, 1970], X1 [mm], Y1 [mm], X2 [mm], Y2 [mm], X3 [mm], Y3 [mm], X4 [mm], Y4 [mm] \n")
+				self.statusbar.showMessage("Opened file for writing: " + self.save_filename)
+			except:
+				self.statusbar.showMessage("Error opening file to save - data won't be saved")
+			
+		
+	def specify_filename(self, normal = True):
+		'''Determine the filename for the save file'''
+		fname = QtGui.QFileDialog.getSaveFileName(caption="Select filename to record data to", directory="/Users/Oakley/Desktop/")
+
+		#Add the .txt extension if it's not already there
+		if fname[-4:] != ".txt":
+			fname += ".txt"
+			
+		if normal:
+			self.filename_box.setText(fname)
+		else:
+			return fname
+		#Advance the color wheel
+		#self._color_index += 1
+		
+		#Find the new zero point from the data class
+		#self._data.zero_diodes()
+
+	def emergency_save(self):
+		self.emergency_save_filename = self.specify_filename(normal=False)
+		self._data.save_all_data(self.emergency_save_filename)
+		
 	def setup_diodes(self):
 		'''Plot the initial diode maps'''
 		self.fig1 = Figure()#plt.figure()
@@ -727,6 +744,52 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.diode4.set_ylim([-5,5])
 	
 		self.canvas.draw()
+
+	def setup_grid(self):
+		'''Set up the figure for plotting the pixel grid'''
+		
+		#Set up the figures / plots
+		self.fig2 = Figure()
+		self.fig2.set_size_inches(8,2.5)
+		self.canvas2 = FigureCanvas(self.fig2)
+		self.canvas2.setParent(self.pixel_plot_widget)
+		self.pixel_map = self.fig2.add_subplot(111)
+		
+		self.pixel_plot_new = self.pixel_map.plot(0,0,color='r')
+		self.pixel_plot = self.pixel_map.plot(0,0,color='k')
+		
+		#Determine values for grid
+		self.initialize_grid_values()
+		
+		#Actually plot the grid
+		self.update_grid(0,0,0,'r')
+		
+		self.pixel_map.set_xlim([-10,10])
+		self.pixel_map.set_ylim([-10,10])
+		self.pixel_map.set_title('Pixel Map (APPROXIMATION ONLY!)')
+
+
+	def initialize_grid_values(self):
+		'''Initialize the pixel grid'''
+
+		xgrid = []
+		ygrid = []
+		
+		for k in range(6,-1,-1):
+			
+			x_addition = np.concatenate((np.arange(-6,7),np.arange(-6,7)[::-1]))
+			xgrid = np.concatenate((xgrid, x_addition))
+			y_addition = np.concatenate((np.ones(13)*k,np.ones(13)*(k-6)))
+			ygrid = np.concatenate((ygrid,y_addition))
+			
+		for k in range(-6,1,1):
+			x_addition = np.concatenate((np.ones(13)*k,np.ones(13)*(k+6)))
+			xgrid = np.concatenate((xgrid, x_addition))
+			y_addition = np.concatenate((np.arange(-6,7),np.arange(-6,7)[::-1]))
+			ygrid = np.concatenate((ygrid, y_addition))
+
+		self.xgrid = xgrid
+		self.ygrid = ygrid
 	
 	def update_display(self):
 		'''Update the plot windows'''
@@ -744,22 +807,18 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		if self.record:
 			self._data.save_data()
 
-	def calculate_shift(self):
-		pass
+
+
 		
 	def update_diodes(self):
 		'''Update the diode maps'''
+
+		#Timing information
 		self.ts = time.time()
 		self.data_speed_label.setText(QtGui.QApplication.translate("MainWindow", "Data Rate = " + str(round(1. / (self.ts-self.ts_old),1)) + " Hz", None, QtGui.QApplication.UnicodeUTF8))
 		self.ts_old = self.ts
-
-		#x1 = newdata[0][:]
-		#y1 = newdata[1][:]
-		#print x1
-		#print y1
-		#self.line1.set_data(x1,y1)
-		#self.x.append(newdata[0])
-		#self.y.append(newdata[1])
+		
+		#Determine whether data should be real or fake
 		self._data.fake_data = self.fakedata_button.isChecked()
 		
 		#This is sort of weird way to find the selected port. Other methods seem to fail though
@@ -767,32 +826,61 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#Weird
 		selected_ports = self.listWidget.selectedItems()
 		self._data.port = selected_ports[0].text()
-
+		
+		#Obtain new data
 		self._data.read_cycle()
-		data = self._data.position
+
+		#Update labels
+		self.num_records_label.setText(QtGui.QApplication.translate("MainWindow", "Records Stored = " + str(self._data.num_records), None, QtGui.QApplication.UnicodeUTF8))
 
 		#Reposition the new data with respect to the zero point
 		#plot_data = data - self._data.zero_spot
 		#spot_color = self._color_wheel[self._color_index]
 		#self.diode1_plot[0].set_color(spot_color)
-		self.diode1_plot[0].set_data(data[:,0], data[:,1])
-		self.diode2_plot[0].set_data(data[:,2], data[:,3])
-		self.diode3_plot[0].set_data(data[:,4], data[:,5])
-		self.diode4_plot[0].set_data(data[:,6], data[:,7])
-		#self.diode4.set_ylim([-5,random.random()*5])
-		#self.diode1.figure.set_data(newdata[0],newdata[1])
-		#self.diode1.plot(newdata[0],newdata[1],'k.')
-		#self.diode2.plot(newdata[2],newdata[3],'k.')
-		#self.diode3.plot(newdata[4],newdata[5],'k.')
-		#self.diode4.plot(newdata[6],newdata[7],'k.')
-	
-		#self.diode1.figure.canvas.draw()
-		#self.fig1.canvas.draw()
 		
-		#return self.line1
-		self.canvas.draw()
-		#self.main_gui.show()
+		if self.realtime_plot_checkbox.isChecked():
+			self.diode1_plot[0].set_data(self._data.position[:,0], self._data.position[:,1])
+			self.diode2_plot[0].set_data(self._data.position[:,2], self._data.position[:,3])
+			self.diode3_plot[0].set_data(self._data.position[:,4], self._data.position[:,5])
+			self.diode4_plot[0].set_data(self._data.position[:,6], self._data.position[:,7])
+
+			#Redisplay the plots		
+			self.canvas.draw()
 	
+
+
+	def calculate_shift(self):
+		pass
+
+
+	def update_grid(self,x,y,angle,color):
+		'''Plot the pixel grid'''
+				
+		self.rotation_matrix = [[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]]
+
+		self.xgrid_new = []
+		self.ygrid_new = []
+
+		#Reshape the position pairs to be a 2 column array
+		original_pairs = np.transpose(np.vstack((self.xgrid,self.ygrid)))
+		
+		#Calculate the new pairs after applying the rotation matrix
+		new_pairs = np.dot(original_pairs,self.rotation_matrix)
+
+		#Break it back up into individual arrays for plotting
+		self.xgrid_new = new_pairs[:,0] + x
+		self.ygrid_new = new_pairs[:,1] + y
+		
+		if self.realtime_plot_checkbox.isChecked():
+			
+			#Assign the new data to the array for plotting
+			self.pixel_plot_new[0].set_data(self.xgrid_new,self.ygrid_new)
+			self.pixel_plot[0].set_data(self.xgrid,self.ygrid)
+			
+			#Plot the two grids
+			self.canvas2.draw()
+		
+
 
 
 if __name__ == "__main__":
