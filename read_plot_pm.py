@@ -172,39 +172,23 @@ class Position_data():
 
 	def sync_feed(self,sync_attempt):
 		'''Search for the frame sync byte'''
-		
-		#dump2 = self.ser.read(self.ser.inWaiting())
-		startTT = time.time()
-		
-		#while sync_attempt < 100:
+		while sync_attempt < 100:
 	
-		#Read in a byte (will be an ascii character)
-		sync_test_bytes = self.ser.read(64)
-		
-		#Convert byte to integer (needed to perform operations on)
-		sync_test_int = []
-		
-		synced = False
-		counter = 0
-		while synced == False:
-			sync_test_int.append(ord(sync_test_byte[counter]))
-			if sync_test_int[-1] >= 128:
-				synced = True
-			counter = counter + 1
+			#Read in a byte (will be an ascii character)
+			sync_test_byte = self.ser.read(1)
 			
+			#Convert byte to integer (needed to perform operations on)
+			sync_test_int = ord(sync_test_byte)
+			#print sync_test_int
 			
-		#print sync_test_int
-		
-		#Check to see if the first bit is a 1
-		#This happens when the overall integer value is >= 128
-		
-		if sync_test_int >= 128:
-			print 'Sync in: ' + str(sync_attempt) + ' attempts'
-			endTT = time.time()
-			print "SYNC TIME = " +str(endTT - startTT)
-			return 
-		
-		sync_attempt += 1
+			#Check to see if the first bit is a 1
+			#This happens when the overall integer value is >= 128
+			
+			if sync_test_int >= 128:
+				print 'Sync in: ' + str(sync_attempt) + ' attempts'
+				return sync_test_byte
+			
+			sync_attempt += 1
 	
 		print 'Failed to sync in: ' + str(sync_attempt) + ' attempts'
 		#sys.exit()
@@ -228,9 +212,9 @@ class Position_data():
 			
 			if self.connected_to_usb == True:
 				self.cycle_byte.append(self.sync_feed(sync_attempt))
-				#print "SYNC BYTE"
-				#print self.cycle_byte[-1]
-				#print ord(self.cycle_byte[-1])
+				print "SYNC BYTE"
+				print self.cycle_byte[-1]
+				print ord(self.cycle_byte[-1])
 				self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))     
 				
 				if self.cycle_byte_to_int[0] < 128:
@@ -251,7 +235,7 @@ class Position_data():
 				
 				#Dump all the backlog
 				dump = self.ser.read(self.ser.inWaiting())
-				#self.ser.flushInput()
+			
 		else:
 			r = random.uniform(-3,3)
 			self.x1_position.append(r)
@@ -278,12 +262,8 @@ class Position_data():
 		self.cycle_bit15array = []
 		self.cycle_valuearray = []
 		print "IN WAITING " + str(self.ser.inWaiting())
-		startT = time.time()
-		
-		self.cycle31bytes = self.ser.read(31)
-		
 		for k in range(1,32):
-			self.cycle_byte.append(self.cycle31bytes[k-1])
+			self.cycle_byte.append(self.ser.read(1))
 
 			# return an integer representing the Unicode code point of the character
 			#self.cycle_byte_to_int.append(ord(self.cycle_byte[k]))
@@ -311,9 +291,7 @@ class Position_data():
 				
 				#Put the bits back together and put it into a float variable for easy division
 				self.cycle_valuearray.append(float(self.convert_from_twos_complement(self.cycle_bit15array[(k-1)/2])))
-		endT = time.time()
-		
-		#print "READ TIME = " + str(endT-startT)
+
 
 
 	def print_positions(self):
