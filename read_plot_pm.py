@@ -1,5 +1,6 @@
 
 #python -m serial.tools.miniterm --port='/dev/tty.usbserial-FTT3QDXK' --baud=115200
+#python -m serial.tools.miniterm --port='/dev/tty.SLAB_USBtoUART' --baud=115200
 
 import numpy as np
 
@@ -53,7 +54,7 @@ class Position_data():
 	def initialize_data(self):
 		'''Initialize data'''
 	
-		self.data = []
+		#self.data = []
 		self.data_timestamp = []
 		
 		self.x1 = []
@@ -100,6 +101,9 @@ class Position_data():
 		self.parity = 'N'
 		self.rtscts = False
 		self.xonxoff = False
+		
+		self.port = str(self.port)
+
 		try:
 			self.ser = serial.Serial(self.port, self.baudrate)
 			print 'Setting up USB connection:'
@@ -109,9 +113,9 @@ class Position_data():
 			print 'RTSCTS: ' + str(self.rtscts)
 			print 'XONXOFF: ' + str(self.xonxoff)    
 			self.connected_to_usb = True
+			print 'Made USB connection'
 		except:
 			print "Failed to make USB Connection"
-        	
 
 
 
@@ -181,7 +185,7 @@ class Position_data():
 			#This happens when the overall integer value is >= 128
 			
 			if sync_test_int >= 128:
-				#print 'Sync in: ' + str(sync_attempt) + ' attempts'
+				print 'Sync in: ' + str(sync_attempt) + ' attempts'
 				return sync_test_byte
 			
 			sync_attempt += 1
@@ -207,7 +211,10 @@ class Position_data():
 			
 			
 			if self.connected_to_usb == True:
-				self.cycle_byte.append(self.sync_feed(sync_attempt))		
+				self.cycle_byte.append(self.sync_feed(sync_attempt))
+				print "SYNC BYTE"
+				print self.cycle_byte[-1]
+				print ord(self.cycle_byte[-1])
 				self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))     
 				
 				if self.cycle_byte_to_int[0] < 128:
@@ -224,7 +231,10 @@ class Position_data():
 				
 				self.calculate_positions()
 				
-				self.print_positions()
+				#self.print_positions()
+				
+				#Dump all the backlog
+				dump = self.ser.read(self.ser.inWaiting())
 			
 		else:
 			r = random.uniform(-3,3)
@@ -251,12 +261,13 @@ class Position_data():
 		
 		self.cycle_bit15array = []
 		self.cycle_valuearray = []
-		
+		print "IN WAITING " + str(self.ser.inWaiting())
 		for k in range(1,32):
 			self.cycle_byte.append(self.ser.read(1))
 
 			# return an integer representing the Unicode code point of the character
-			self.cycle_byte_to_int.append(ord(self.cycle_byte[k]))
+			#self.cycle_byte_to_int.append(ord(self.cycle_byte[k]))
+			self.cycle_byte_to_int.append(ord(self.cycle_byte[-1]))
 			#print ord(self.cycle_byte[k])
 			
 			if (k % 2 == 1):
@@ -294,16 +305,16 @@ class Position_data():
 			if printinfo % 2==1:
 				print self.byte[printinfo],'   ', self.byte_to_int[printinfo],'   ', self.bit15array[(printinfo-1)/2], '   ', self.valuearray[(printinfo-1)/2]
 			
-			print
-			print 'Positions'
-			print self.x1_position
-			print self.y1_position
-			print self.x2_position
-			print self.y2_position
-			print self.x3_position
-			print self.y3_position
-			print self.x4_position
-			print self.y4_position
+		print
+		print 'Positions'
+		print self.x1_position
+		print self.y1_position
+		print self.x2_position
+		print self.y2_position
+		print self.x3_position
+		print self.y3_position
+		print self.x4_position
+		print self.y4_position
 		  	
 	
 	def save_data(self):
@@ -601,7 +612,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		'''Change the speed of the data taking depending on if plots are generated'''
 		if self.realtime_plot_checkbox.isChecked():
 			#Slow speed so the plots have time to draw
-			self._timer.interval = 110
+			self._timer.interval = 510
 		else:
 			#Fast speed since there's no need for plotting
 			self._timer.interval = 11
@@ -815,7 +826,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#The port will be auto-selected, but doesn't react the same as user-selected.
 		#Weird
 		selected_ports = self.listWidget.selectedItems()
-		self._data.port = selected_ports[0].text()
+		self._data.port = str(selected_ports[0].text())
 		
 		#Obtain new data
 		self._data.read_cycle()
