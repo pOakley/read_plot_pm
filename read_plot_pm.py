@@ -62,29 +62,43 @@ class Position_data(threading.Thread):
 		#NEED TO FIX THIS
 		self.fake_data = True
 
-		#These have to be separate so they don't get cleared when the clear plot button is clicked
-		self._data_timestamp_all = []
-		self._position_all = np.zeros((1,8))
-		
+		self.record = False
+
+		self.timestart = 0.0
+		self.timeend = 0.0
+	
 	def run(self):
 		"""Loop that runs while thread is active"""
 		while(True):
 			while (self.store_data == True):
+
 				self.read_cycle()
+
+				#timestart = time.time()
 				self.move_data_to_buffer()
+				#timeend = time.time()
+				#print 'putting time ' + str(timeend-timestart)
+
+				if self.record:
+					self.save_data()
 				time.sleep(.01)
+
+
+				# print poo
+				# poo += 1
 
 
 	def move_data_to_buffer(self):
 		"""Take the new data and put it into the buffer"""
 		
 		#Update a data stored counter
-		self.new_data_size = np.size(self.position)/8
-		self.data_stored_counter += self.new_data_size
+		# self.new_data_size += 1
+		# self.data_stored_counter += self.new_data_size
 		
-		#Put the data into the buffer
-		self._buffer.put_nowait(self.position)
 
+		#Put the data into the buffer
+		#self._buffer.put_nowait(self.position)
+		self._buffer.put(self.position, False)
 		# print "Put the following data into the buffer:"
 		# print self.position
 			
@@ -129,6 +143,7 @@ class Position_data(threading.Thread):
 		self.y4_position = []
 		
 		self.position = np.zeros((1,8))
+		self.new_position = np.zeros((1,8))
 		self.zero_spot = np.zeros((1,8))
 
 		
@@ -197,14 +212,8 @@ class Position_data(threading.Thread):
 		else:
 			self.position = np.vstack([self.position,position_list])
 		
-		if (np.size(self._position_all) == 8 and np.sum(self._position_all) == 0.0):
-			self._position_all = position_list
-		else:
-			self._position_all = np.vstack([self._position_all,position_list])
-		
 		#Save time stamps
 		self.data_timestamp.append(time.time())
-		self._data_timestamp_all.append(time.time())
 
 	def convert_from_twos_complement(self,value):
 		'''Convert from twos complement'''
@@ -303,22 +312,22 @@ class Position_data(threading.Thread):
 			r = np.zeros(8)
 			for k in range(8):
 				r[k] = random.uniform(-3,3)
-			#self.x1_position.append(r)
-			#self.y1_position.append(r)
 
+			#Update the new data. This is what will get saved to file (since the rest is already written)
+			# if self.new_data_size==1:
+			# 	self.new_position[0,:] = r
+			# else:
+			# 	self.new_position = np.vstack([self.new_position,r])
+
+			#Update the arrays holding all the data
 			if (np.size(self.position) == 8 and np.sum(self.position) == 0.0):
 				self.position[0,:] = r
 			else:
 				self.position = np.vstack([self.position,r])
 
-			
-			if (np.size(self._position_all) == 8 and np.sum(self._position_all) == 0.0):
-				self._position_all[0,:] = r
-			else:
-				self._position_all = np.vstack([self._position_all,r])
-			
+
+
 			self.data_timestamp.append(time.time())
-			self._data_timestamp_all.append(time.time())
 			
 	def read_31_bytes(self):
 		'''Read the next 31 bytes'''
@@ -396,45 +405,29 @@ class Position_data(threading.Thread):
 		#current_time = str(datetime.datetime.now())
 		#Time since Jan 1, 1970 (verify with: time.gmtime(0))
 		#current_time = str(time.time())
-		print self.new_data_size
-		print np.size(self.data_timestamp)
+		# print self.new_data_size
+		# print np.size(self.data_timestamp)
+
 		try:
-			for add_data in range(-self.new_data_size,0):
-				self.save_file.write(str(self.data_timestamp[add_data]) + ', ')
-				for k in range(8):
-					self.save_file.write(str(self.position[add_data,k]))
-					if k < 7:
-						self.save_file.write(', ')
-				
-				self.save_file.write('\n')
-				self.num_records += 1
+			self.timestart = time.time()
+			print 'saving time ' + str(self.timeend-self.timestart)
+			self.timeend = time.time()
 		except:
-			print "Error in save loop - data probably not saved"
-			
-	def save_all_data(self, fname):
-		'''Save all the data since the program was open'''
+			print 'first save'
+
 		try:
-			#Open file
-			self.emergency_save_filename = fname
-			self.emergency_save_file = open(self.emergency_save_filename,'a')
-
-			#Loop over data
-			self.emergency_save_file.write("Time [seconds since Jan 1, 1970], X1 [mm], Y1 [mm], X2 [mm], Y2 [mm], X3 [mm], Y3 [mm], X4 [mm], Y4 [mm] \n")
-
-			for points in range(np.size(self._position_all,0)):
-				self.emergency_save_file.write(str(self._data_timestamp_all[points]) + ', ')
-				for loc in range(np.size(self._position_all,1)):
-					self.emergency_save_file.write(str(self._position_all[points,loc]))
-					if loc < 7:
-						self.emergency_save_file.write(', ')
-				self.emergency_save_file.write('\n')
+			self.save_file.write(str(self.data_timestamp[-1]) + ', ')
+			for k in range(8):
+				self.save_file.write(str(self.position[-1,k]))
+				if k < 7:
+					self.save_file.write(', ')
 			
-			#Close the file	
-			self.emergency_save_file.close()
+			self.save_file.write('\n')
+			self.num_records += 1
 		except:
 			print "Error in save loop - data probably not saved"
 
-			
+
 
 class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
@@ -451,7 +444,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#Give this class access to the data buffer
 		self._buffer = buffer
 
-		self.retrieved_data =np.array([0,0,0,0,0,0,0,0])
+		self.retrieved_data = np.zeros((1,8))
 
 		#GUI stuff
 		self.main_gui = QtGui.QMainWindow()
@@ -462,7 +455,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.setup_grid()
 
 		#More GUI stuff
-		self.record = False
+		self._data.record = False
 		self.playing = False
 		self.retranslateUi(self.main_gui)
 		QtCore.QMetaObject.connectSlotsByName(self.main_gui)
@@ -625,13 +618,13 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.menuFile = QtGui.QMenu(self.menubar)
 		self.menuFile.setObjectName(_fromUtf8("menuFile"))
 		MainWindow.setMenuBar(self.menubar)
-		self.actionEmergency_Save_All = QtGui.QAction(MainWindow)
-		self.actionEmergency_Save_All.setObjectName(_fromUtf8("actionEmergency_Save_All"))
-		self.menuFile.addAction(self.actionEmergency_Save_All)
-		self.menubar.addAction(self.menuFile.menuAction())
+		# self.actionEmergency_Save_All = QtGui.QAction(MainWindow)
+		# self.actionEmergency_Save_All.setObjectName(_fromUtf8("actionEmergency_Save_All"))
+		# self.menuFile.addAction(self.actionEmergency_Save_All)
+		# self.menubar.addAction(self.menuFile.menuAction())
 
 		#Connect actions with the functions they call
-	        QtCore.QObject.connect(self.actionEmergency_Save_All, QtCore.SIGNAL(_fromUtf8("triggered()")), self.emergency_save)
+	    #QtCore.QObject.connect(self.actionEmergency_Save_All, QtCore.SIGNAL(_fromUtf8("triggered()")), self.emergency_save)
 		QtCore.QObject.connect(self.play_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.startstop)
 		QtCore.QObject.connect(self.record_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.record)
 		QtCore.QObject.connect(self.filename_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.specify_filename)
@@ -658,7 +651,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		__sortingEnabled = self.listWidget.isSortingEnabled()
 		self.listWidget.setSortingEnabled(False)
 		self.menuFile.setTitle(QtGui.QApplication.translate("MainWindow", "File", None, QtGui.QApplication.UnicodeUTF8))
-		self.actionEmergency_Save_All.setText(QtGui.QApplication.translate("MainWindow", "Emergency Save All", None, QtGui.QApplication.UnicodeUTF8))
+		#self.actionEmergency_Save_All.setText(QtGui.QApplication.translate("MainWindow", "Emergency Save All", None, QtGui.QApplication.UnicodeUTF8))
 
 		list_of_usb_ports = serports.comports()
 
@@ -673,10 +666,10 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.listWidget.item(counter-1).setSelected(True)
 		self.listWidget.setSortingEnabled(__sortingEnabled)
 
-        def startstop(self):
-        	'''Start or stop the data taking'''
+	def startstop(self):
+		'''Start or stop the data taking'''
 		if self.playing == False:
-			if self.record == False:
+			if self._data.record == False:
 				self.statusbar.showMessage("Monitoring Diodes")
 			else:
 				self.statusbar.showMessage("Monitoring Diodes - Recording data to: " + self.save_filename)
@@ -689,13 +682,13 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
 			if not self._data.isAlive():
 				self._data.start()		
-			self.playing = True
+				self.playing = True
 		else:
 			self.statusbar.showMessage("Monitoring Paused")
 
 			#Stop the plotting timer
 			self._timer.stop()
-			
+
 			#stop the reading thread
 			self.playing = False
 			self._data.store_data = False
@@ -707,7 +700,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			self._timer.interval = 110
 		else:
 			#Fast speed since there's no need for plotting
-			self._timer.interval = 20#11
+			self._timer.interval = 110#11
 	
 	def clear_plot(self):
 		'''Clear the plots'''
@@ -734,11 +727,11 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 					
 	def record(self):
 		'''Start or stop recording data'''
-		if self.record == True:
+		if self._data.record == True:
 			#Data is already recording, turn recording off
 
 			#Stop recording
-			self.record = False
+			self._data.record = False
 			
 			try:
 				#Close the save file
@@ -749,7 +742,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 				self.statusbar.showMessage("Error closing save file - data may be lost")
 		else:
 			#Start recording
-			self.record = True
+			self._data.record = True
 			try:
 				#Determine the save filename from the filename_box	
 				self.save_filename = self.filename_box.text()
@@ -789,10 +782,6 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#Find the new zero point from the data class
 		#self._data.zero_diodes()
 
-	def emergency_save(self):
-		'''Emergency save all data since the program was opened'''
-		self.emergency_save_filename = self.specify_filename(normal=False)
-		self._data.save_all_data(self.emergency_save_filename)
 		
 	def setup_diodes(self):
 		'''Plot the initial diode maps'''
@@ -899,11 +888,6 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#Update the pixel grid display plot
 		self.update_grid(random.uniform(-3,3),random.uniform(-3,3),random.uniform(-3,3),'k')
 		
-		#If set to record, start recording
-		if self.record:
-			self._data.save_data()
-
-
 
 		
 	def update_diodes(self):
@@ -927,6 +911,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.ts_old = self.ts
 		
 		#Update labels
+		#NOTE THAT THIS WILL NEVER BE EXACTLY RIGHT - THE READING THREAD ADDS MORE RECORDS BETWEEN THE TIME THIS COMMAND IS ISSUED EACH MATPLOTLIB TIMER EVENT
 		self.num_records_label.setText(QtGui.QApplication.translate("MainWindow", "Records Stored = " + str(self._data.num_records), None, QtGui.QApplication.UnicodeUTF8))
 
 		#Reposition the new data with respect to the zero point
@@ -989,14 +974,23 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
  		
  		#Update the amount of data plotted
  		self.new_data_size = self._buffer.qsize()
-
+ 		
 		for looper in range(self.new_data_size):
 			#print looper
+			#timestart = time.time()
+			newdata = self._buffer.get(True)
+			#timeend = time.time()
+			#print 'getting time ' + str(timeend-timestart)
+
+			#This is what I originally had. However this got slow really fast. Fortunately it looks like the set_data plotting only needs the 
+			#new data (as it overplots). So I don't need to make big arrays that slow everything down.
+			#self.retrieved_data = np.vstack([self.retrieved_data,newdata])
 			
-			self.retrieved_data = np.vstack([self.retrieved_data,self._buffer.get_nowait()])
+			self.retrieved_data = newdata
 
 
-
+		# print 'RETRIEVED DATA'
+		# print self.retrieved_data
 						
 
 
@@ -1018,5 +1012,5 @@ if __name__ == "__main__":
 	#data.daemon = True
 	
 	app = QtGui.QApplication(sys.argv)
-	display=Position_plots(data, buffer)
+	display = Position_plots(data, buffer)
 	sys.exit(app.exec_())
