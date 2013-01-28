@@ -24,6 +24,9 @@ import time
 from PyQt4 import QtCore, QtGui
 import sys
 
+import threading
+import Queue
+
 
 class Diode():
 	
@@ -37,20 +40,54 @@ class Diode():
 		
 		
 
-class Position_data():
+class Position_data(threading.Thread):
 	
 
-	def __init__(self):
+	def __init__(self, buffer):
 		'''Initialize the data'''
+		
+		threading.Thread.__init__(self)
+		self._buffer = buffer
+		#Count how much data gets put into the buffer
+		self.data_stored_counter = 0
+		self.daemon = True
 		
 		self.initialize_data()
 		self.num_records = 0
 		self.connected_to_usb = False
 		
+		#THIS IS TEMPORARY - MAKE SURE TO DELETE THIS.
+		#RIGHT NOW THIS THREAD STARTS BEFORE IT KNOWS WHETHTER THE DATA IS FAKE OR NOT
+		#THAT DETERMINATION DOESN'T HAPPEN UNTIL THE MATPLOTLIB TIMER LOOP OCCURS
+		#NEED TO FIX THIS
+		self.fake_data = True
+
 		#These have to be separate so they don't get cleared when the clear plot button is clicked
 		self._data_timestamp_all = []
 		self._position_all = np.zeros((1,8))
 		
+	def run(self):
+		"""Loop that runs while thread is active"""
+		while(True):
+			while (self.store_data == True):
+				self.read_cycle()
+				self.move_data_to_buffer()
+				time.sleep(.01)
+
+
+	def move_data_to_buffer(self):
+		"""Take the new data and put it into the buffer"""
+		
+		#Update a data stored counter
+		self.new_data_size = np.size(self.position)/8
+		self.data_stored_counter += self.new_data_size
+		
+		#Put the data into the buffer
+		self._buffer.put_nowait(self.position)
+
+		# print "Put the following data into the buffer:"
+		# print self.position
+			
 	def initialize_data(self):
 		'''Initialize data'''
 	
@@ -84,6 +121,13 @@ class Position_data():
 	
 		self.x1_position = []
 		self.y1_position = []
+		self.x2_position = []
+		self.y2_position = []
+		self.x3_position = []
+		self.y3_position = []
+		self.x4_position = []
+		self.y4_position = []
+		
 		self.position = np.zeros((1,8))
 		self.zero_spot = np.zeros((1,8))
 
@@ -101,11 +145,12 @@ class Position_data():
 		self.parity = 'N'
 		self.rtscts = False
 		self.xonxoff = False
+		self.dsrdtr = False
 		
 		self.port = str(self.port)
 
 		try:
-			self.ser = serial.Serial(self.port, self.baudrate)
+			self.ser = serial.Serial(self.port, self.baudrate, rtscts=self.rtscts, xonxoff=self.xonxoff, dsrdtr=self.dsrdtr)
 			print 'Setting up USB connection:'
 			print 'Port: ' + self.port
 			print 'Baudrate: ' + str(self.baudrate)
@@ -124,20 +169,29 @@ class Position_data():
 	def calculate_positions(self):
 		'''Calculate laser spot position from diode values'''
 		#Calculate spot positions
-		self.x1_position = self.valuearray[1] / self.valuearray[0]
-		self.y1_position = self.valuearray[3] / self.valuearray[2]
-		self.x2_position = self.valuearray[5] / self.valuearray[4]
-		self.y2_position = self.valuearray[7] / self.valuearray[6]
-		self.x3_position = self.valuearray[9] / self.valuearray[8]
-		self.y3_position = self.valuearray[11] / self.valuearray[10]
-		self.x4_position = self.valuearray[13] / self.valuearray[12]
-		self.y4_position = self.valuearray[15] / self.valuearray[14]
-	
+		
+		self.voltage_to_position_conversion = 2.5
+		
+		try:
+			self.x1_position = self.valuearray[1] / self.valuearray[0] * self.voltage_to_position_conversion
+			self.y1_position = self.valuearray[3] / self.valuearray[2] * self.voltage_to_position_conversion
+			self.x2_position = self.valuearray[5] / self.valuearray[4] * self.voltage_to_position_conversion
+			self.y2_position = self.valuearray[7] / self.valuearray[6] * self.voltage_to_position_conversion
+			self.x3_position = self.valuearray[9] / self.valuearray[8] * self.voltage_to_position_conversion
+			self.y3_position = self.valuearray[11] / self.valuearray[10] * self.voltage_to_position_conversion
+			self.x4_position = self.valuearray[13] / self.valuearray[12] * self.voltage_to_position_conversion
+			self.y4_position = self.valuearray[15] / self.valuearray[14] * self.voltage_to_position_conversion
+		except:
+			print "ERROR CALCULATING POSITIONS - USUALLY A DIVIDE BY 0"
+			print sys.exc_info()[0]	
+			
+			
 		position_list = [self.x1_position,self.y1_position,self.x2_position,self.y2_position,self.x3_position,self.y3_position,self.x4_position,self.y4_position]
 	
 		#if np.size(self.position) > 80:
 		#	self.position = np.zeros((1,8))
-	
+		
+		#Stupid stuff to handle arrays. Probably should find a smarter way to do this
 		if (np.size(self.position) == 8 and np.sum(self.position) == 0.0):
 			self.position[0,:] = position_list
 		else:
@@ -148,6 +202,7 @@ class Position_data():
 		else:
 			self._position_all = np.vstack([self._position_all,position_list])
 		
+		#Save time stamps
 		self.data_timestamp.append(time.time())
 		self._data_timestamp_all.append(time.time())
 
@@ -211,10 +266,13 @@ class Position_data():
 			
 			
 			if self.connected_to_usb == True:
+				#Dump all the backlog
+				#print 'Dump size = ' + str(self.ser.inWaiting()/32*32)
+				#dump = self.ser.read(self.ser.inWaiting()/32*32)
 				self.cycle_byte.append(self.sync_feed(sync_attempt))
-				print "SYNC BYTE"
-				print self.cycle_byte[-1]
-				print ord(self.cycle_byte[-1])
+				#print "SYNC BYTE"
+				#print self.cycle_byte[-1]
+				#print ord(self.cycle_byte[-1])
 				self.cycle_byte_to_int.append(ord(self.cycle_byte[0]))     
 				
 				if self.cycle_byte_to_int[0] < 128:
@@ -223,7 +281,7 @@ class Position_data():
 					sys.exit()
 				
 				self.read_31_bytes()
-				
+								
 				self.valuearray = self.cycle_valuearray
 				self.bit15array = self.cycle_bit15array
 				self.byte = self.cycle_byte
@@ -234,36 +292,46 @@ class Position_data():
 				#self.print_positions()
 				
 				#Dump all the backlog
-				dump = self.ser.read(self.ser.inWaiting())
+				#print self.ser.inWaiting()
+				dump_fudge = 5 #inWaiting() doesn't provide the full buffer size, so need a fudge factor
+				print 'Dump size = ' + str(dump_fudge*32 + self.ser.inWaiting()/32*32)
+				dump = self.ser.read(dump_fudge*32 + self.ser.inWaiting()/32*32)
+						
+
 			
 		else:
-			r = random.uniform(-3,3)
-			self.x1_position.append(r)
-			self.y1_position.append(r)
+			r = np.zeros(8)
+			for k in range(8):
+				r[k] = random.uniform(-3,3)
+			#self.x1_position.append(r)
+			#self.y1_position.append(r)
 
 			if (np.size(self.position) == 8 and np.sum(self.position) == 0.0):
-				self.position[0,:] = np.ones(8)*r
+				self.position[0,:] = r
 			else:
-				self.position = np.vstack([self.position,np.ones(8)*r])
+				self.position = np.vstack([self.position,r])
 
 			
 			if (np.size(self._position_all) == 8 and np.sum(self._position_all) == 0.0):
-				self._position_all[0,:] = np.ones(8)*r
+				self._position_all[0,:] = r
 			else:
-				self._position_all = np.vstack([self._position_all,np.ones(8)*r])
+				self._position_all = np.vstack([self._position_all,r])
 			
 			self.data_timestamp.append(time.time())
 			self._data_timestamp_all.append(time.time())
 			
-
 	def read_31_bytes(self):
 		'''Read the next 31 bytes'''
 		
 		self.cycle_bit15array = []
 		self.cycle_valuearray = []
 		print "IN WAITING " + str(self.ser.inWaiting())
+		
+		self.cycle31_bytes = self.ser.read(31)
+		#self.cycle_byte.extend(self.cycle31_bytes)
+		
 		for k in range(1,32):
-			self.cycle_byte.append(self.ser.read(1))
+			self.cycle_byte.append(self.cycle31_bytes[k-1])
 
 			# return an integer representing the Unicode code point of the character
 			#self.cycle_byte_to_int.append(ord(self.cycle_byte[k]))
@@ -285,10 +353,15 @@ class Position_data():
 				desynced2 = self.cycle_byte_to_int[k]   & ~(1 << 7)
 				
 				#combine the two bitarrays
-				#Combines the first variable (least significant bits) with the second variable (most significant bits)
-				#Example: 1010101 | 1111111 = 11111111010101
-				self.cycle_bit15array.append(desynced1 | (desynced2 << 7))
 				
+				#THIS IS WRONG (10.30.2012)
+					#Combines the first variable (least significant bits) with the second variable (most significant bits)
+					#Example: 1010101 | 1111111 = 11111111010101
+					#self.cycle_bit15array.append(desynced1 | (desynced2 << 7))
+
+				#THIS IS RIGHT (I HOPE) (10.30.2012)
+				self.cycle_bit15array.append(desynced2 | (desynced1 << 7))
+					
 				#Put the bits back together and put it into a float variable for easy division
 				self.cycle_valuearray.append(float(self.convert_from_twos_complement(self.cycle_bit15array[(k-1)/2])))
 
@@ -323,15 +396,18 @@ class Position_data():
 		#current_time = str(datetime.datetime.now())
 		#Time since Jan 1, 1970 (verify with: time.gmtime(0))
 		#current_time = str(time.time())
+		print self.new_data_size
+		print np.size(self.data_timestamp)
 		try:
-			self.save_file.write(str(self.data_timestamp[-1]) + ', ')
-			for k in range(8):
-				self.save_file.write(str(self.position[-1,k]))
-				if k < 7:
-					self.save_file.write(', ')
-			
-			self.save_file.write('\n')
-			self.num_records += 1
+			for add_data in range(-self.new_data_size,0):
+				self.save_file.write(str(self.data_timestamp[add_data]) + ', ')
+				for k in range(8):
+					self.save_file.write(str(self.position[add_data,k]))
+					if k < 7:
+						self.save_file.write(', ')
+				
+				self.save_file.write('\n')
+				self.num_records += 1
 		except:
 			print "Error in save loop - data probably not saved"
 			
@@ -362,20 +438,25 @@ class Position_data():
 
 class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
-	def __init__(self, data):
+	def __init__(self, data, buffer):
 		'''Initialize the GUI Window'''
-		
+
 		#Timing information
 		self.ts_old = time.time()
 		self.ts = time.time()
-		
-        	#Give this class access to the serial data class
-        	self._data = data
-       
-       		#GUI stuff
+
+		#Give this class access to the serial data class
+		self._data = data
+
+		#Give this class access to the data buffer
+		self._buffer = buffer
+
+		self.retrieved_data =np.array([0,0,0,0,0,0,0,0])
+
+		#GUI stuff
 		self.main_gui = QtGui.QMainWindow()
 		self.setupUi(self.main_gui)
-		
+
 		#Plot stuff
 		self.setup_diodes()
 		self.setup_grid()
@@ -385,23 +466,22 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.playing = False
 		self.retranslateUi(self.main_gui)
 		QtCore.QMetaObject.connectSlotsByName(self.main_gui)
-		
+
 		#Define the plot timer that updates the diodes / map
 		self._timer = self.fig1.canvas.new_timer()
-	        self._timer.interval = 110
-        	self._timer.add_callback(self.update_display)
-        	
- 	
-        	#Color stuff (doesn't work right now)
+		self._timer.interval = 110
+		self._timer.add_callback(self.update_display)
+
+		#Color stuff (doesn't work right now)
 		self._color_wheel = ['k','r','b','g','m']
 		self._color_index = 0
-		
+
 		#Setup the diodes
 		self.diode1 = Diode(0,0)
 		self.diode2 = Diode(1,1)
 		self.diode3 = Diode(2,2)
 		self.diode4 = Diode(3,3)
-		
+
 		#Show the GUI
 		self.main_gui.show()
         
@@ -438,12 +518,13 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.verticalLayout.setObjectName(_fromUtf8("verticalLayout"))
 		self.livedata_button = QtGui.QRadioButton(self.widget)
 		self.livedata_button.setObjectName(_fromUtf8("livedata_button"))
+		self.livedata_button.setChecked(True)
 		self.verticalLayout.addWidget(self.livedata_button)
 		self.existingdata_button = QtGui.QRadioButton(self.widget)
 		self.existingdata_button.setObjectName(_fromUtf8("existingdata_button"))
 		self.verticalLayout.addWidget(self.existingdata_button)
 		self.fakedata_button = QtGui.QRadioButton(self.widget)
-		self.fakedata_button.setChecked(True)
+		self.fakedata_button.setChecked(False)
 		self.fakedata_button.setObjectName(_fromUtf8("fakedata_button"))
 		self.verticalLayout.addWidget(self.fakedata_button)
 		self.realtime_plot_checkbox = QtGui.QCheckBox("Plot realtime data", self.widget)
@@ -563,8 +644,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.datamode_label.setText(QtGui.QApplication.translate("MainWindow", "Data Mode", None, QtGui.QApplication.UnicodeUTF8))
 		self.livedata_button.setText(QtGui.QApplication.translate("MainWindow", "Live Data", None, QtGui.QApplication.UnicodeUTF8))
 		self.existingdata_button.setText(QtGui.QApplication.translate("MainWindow", "Existing Data", None, QtGui.QApplication.UnicodeUTF8))
-		self.fakedata_button.setText(QtGui.QApplication.translate("MainWindow", "Fake Data", None, QtGui.QApplication.UnicodeUTF8))
-		self.fakedata_button.setText(QtGui.QApplication.translate("MainWindow", "Fake Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.fakedata_button.setText(QtGui.QApplication.translate("MainWindow", "Test Data", None, QtGui.QApplication.UnicodeUTF8))
 		self.recorddata_label.setText(QtGui.QApplication.translate("MainWindow", "Record Data", None, QtGui.QApplication.UnicodeUTF8))
 		self.record_button.setToolTip(QtGui.QApplication.translate("MainWindow", "Start / resume recording", None, QtGui.QApplication.UnicodeUTF8))
 		self.filename_box.setText(QtGui.QApplication.translate("MainWindow", "/Users/Oakley/Desktop/deleteme.txt", None, QtGui.QApplication.UnicodeUTF8))
@@ -599,23 +679,35 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			if self.record == False:
 				self.statusbar.showMessage("Monitoring Diodes")
 			else:
-				self.statusbar.showMessage("Monitoring Diodes - Recording data to: "+self.save_filename)
+				self.statusbar.showMessage("Monitoring Diodes - Recording data to: " + self.save_filename)
 
-			self._timer.start()		
+			#Start the plotting timer
+			self._timer.start()
+
+			#Start the reading thread
+			self._data.store_data = True
+
+			if not self._data.isAlive():
+				self._data.start()		
 			self.playing = True
 		else:
 			self.statusbar.showMessage("Monitoring Paused")
+
+			#Stop the plotting timer
 			self._timer.stop()
+			
+			#stop the reading thread
 			self.playing = False
+			self._data.store_data = False
 			
 	def change_record_speed(self):
 		'''Change the speed of the data taking depending on if plots are generated'''
 		if self.realtime_plot_checkbox.isChecked():
 			#Slow speed so the plots have time to draw
-			self._timer.interval = 510
+			self._timer.interval = 110
 		else:
 			#Fast speed since there's no need for plotting
-			self._timer.interval = 11
+			self._timer.interval = 20#11
 	
 	def clear_plot(self):
 		'''Clear the plots'''
@@ -628,6 +720,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.diode2_plot[0].set_data(self._data.position[:,2], self._data.position[:,3])
 		self.diode3_plot[0].set_data(self._data.position[:,4], self._data.position[:,5])
 		self.diode4_plot[0].set_data(self._data.position[:,6], self._data.position[:,7])
+
 
 		#Redisplay the plots		
 		self.canvas.draw()
@@ -795,6 +888,8 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 	def update_display(self):
 		'''Update the plot windows'''
 		
+		#This function is called by the matplotlib timer event. So every X milliseconds it gets called automatically
+
 		#Update the diode plots
 		self.update_diodes()
 		
@@ -814,23 +909,23 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 	def update_diodes(self):
 		'''Update the diode maps'''
 
-		#Timing information
-		self.ts = time.time()
-		self.data_speed_label.setText(QtGui.QApplication.translate("MainWindow", "Data Rate = " + str(round(1. / (self.ts-self.ts_old),1)) + " Hz", None, QtGui.QApplication.UnicodeUTF8))
-		self.ts_old = self.ts
-		
+
 		#Determine whether data should be real or fake
 		self._data.fake_data = self.fakedata_button.isChecked()
-		
 		#This is sort of weird way to find the selected port. Other methods seem to fail though
 		#The port will be auto-selected, but doesn't react the same as user-selected.
 		#Weird
 		selected_ports = self.listWidget.selectedItems()
 		self._data.port = str(selected_ports[0].text())
 		
-		#Obtain new data
-		self._data.read_cycle()
+		#Obtain data from the queue
+		self.retrieve_queue()
 
+		#Timing information
+		self.ts = time.time()
+		self.data_speed_label.setText(QtGui.QApplication.translate("MainWindow", "Data Rate = " + str(round(self.new_data_size / (self.ts-self.ts_old),1)) + " Hz", None, QtGui.QApplication.UnicodeUTF8))
+		self.ts_old = self.ts
+		
 		#Update labels
 		self.num_records_label.setText(QtGui.QApplication.translate("MainWindow", "Records Stored = " + str(self._data.num_records), None, QtGui.QApplication.UnicodeUTF8))
 
@@ -840,10 +935,17 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#self.diode1_plot[0].set_color(spot_color)
 		
 		if self.realtime_plot_checkbox.isChecked():
-			self.diode1_plot[0].set_data(self._data.position[:,0], self._data.position[:,1])
-			self.diode2_plot[0].set_data(self._data.position[:,2], self._data.position[:,3])
-			self.diode3_plot[0].set_data(self._data.position[:,4], self._data.position[:,5])
-			self.diode4_plot[0].set_data(self._data.position[:,6], self._data.position[:,7])
+			#This is the old stuff, before I made seperate threads
+			# self.diode1_plot[0].set_data(self._data.position[:,0], self._data.position[:,1])
+			# self.diode2_plot[0].set_data(self._data.position[:,2], self._data.position[:,3])
+			# self.diode3_plot[0].set_data(self._data.position[:,4], self._data.position[:,5])
+			# self.diode4_plot[0].set_data(self._data.position[:,6], self._data.position[:,7])
+
+			#This is the new stuff, probably won't work yet.
+			self.diode1_plot[0].set_data(self.retrieved_data[:,0], self.retrieved_data[:,1])
+			self.diode2_plot[0].set_data(self.retrieved_data[:,2], self.retrieved_data[:,3])
+			self.diode3_plot[0].set_data(self.retrieved_data[:,4], self.retrieved_data[:,5])
+			self.diode4_plot[0].set_data(self.retrieved_data[:,6], self.retrieved_data[:,7])
 
 			#Redisplay the plots		
 			self.canvas.draw()
@@ -882,6 +984,20 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			#Plot the two grids
 			self.canvas2.draw()
 		
+	def retrieve_queue(self):
+ 		read_counter = np.size(self._data.x1_position)
+ 		
+ 		#Update the amount of data plotted
+ 		self.new_data_size = self._buffer.qsize()
+
+		for looper in range(self.new_data_size):
+			#print looper
+			
+			self.retrieved_data = np.vstack([self.retrieved_data,self._buffer.get_nowait()])
+
+
+
+						
 
 
 
@@ -893,10 +1009,14 @@ if __name__ == "__main__":
 	except AttributeError:
 		_fromUtf8 = lambda s: s
 	
-	#Create class instances
-	data    = Position_data()
+	#Create the instances of the data and buffer classes
+	buffer = Queue.Queue()
 	
+	#Create class instances
+	data    = Position_data(buffer)
+	#Make sure the thread dies when this thread is the only thing left
+	#data.daemon = True
 	
 	app = QtGui.QApplication(sys.argv)
-	display=Position_plots(data)
+	display=Position_plots(data, buffer)
 	sys.exit(app.exec_())
