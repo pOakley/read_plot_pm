@@ -60,7 +60,7 @@ class Position_data(threading.Thread):
 		#RIGHT NOW THIS THREAD STARTS BEFORE IT KNOWS WHETHTER THE DATA IS FAKE OR NOT
 		#THAT DETERMINATION DOESN'T HAPPEN UNTIL THE MATPLOTLIB TIMER LOOP OCCURS
 		#NEED TO FIX THIS
-		self.fake_data = True
+		self.fake_data = False
 
 		self.record = False
 
@@ -72,20 +72,21 @@ class Position_data(threading.Thread):
 		while(True):
 			while (self.store_data == True):
 
-				self.read_cycle()
+				try:
+					self.read_cycle()
 
-				#timestart = time.time()
-				self.move_data_to_buffer()
-				#timeend = time.time()
-				#print 'putting time ' + str(timeend-timestart)
+					#timestart = time.time()
+					self.move_data_to_buffer()
+					#timeend = time.time()
+					#print 'putting time ' + str(timeend-timestart)
 
-				if self.record:
-					self.save_data()
-				time.sleep(.01)
+					if self.record:
+						self.save_data()
+					time.sleep(.01)
+				except:
+					print 'excepting main run thread loop - probably needs to go in to timer event first'
+					time.sleep(.1)
 
-
-				# print poo
-				# poo += 1
 
 
 	def move_data_to_buffer(self):
@@ -407,13 +408,6 @@ class Position_data(threading.Thread):
 		#current_time = str(time.time())
 		# print self.new_data_size
 		# print np.size(self.data_timestamp)
-
-		try:
-			self.timestart = time.time()
-			print 'saving time ' + str(self.timeend-self.timestart)
-			self.timeend = time.time()
-		except:
-			print 'first save'
 
 		try:
 			self.save_file.write(str(self.data_timestamp[-1]) + ', ')
