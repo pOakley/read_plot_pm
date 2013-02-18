@@ -33,12 +33,33 @@ class Diode():
 	def __init__(self,x,y):
 		'''Initialize the diode'''
 		#Define the location of the diode based on the CAD model
-		#X and Y are in the diode frame
+		#X and Y are in the ADR frame (the origin is the center of the pixel array)
 		self.xcenter = x
 		self.ycenter = y
+
+		self.angle = math.atan2(self.ycenter,self.xcenter)
+
+		self.rotation_matrix = [[math.cos(self.angle),-math.sin(self.angle)],[math.sin(self.angle),math.cos(self.angle)]]
+
 		
-		
-		
+		#Here X and Y are the initial coordinates on the diode where the laser spot begins. I.e. this is assumed
+		#to be the ADR at rest in it's equilibrium position. Here X and Y are in the diode frame (i.e. between -5 and 5)
+		self.xinitial = 0
+		self.yinitial = 0
+
+		self.initialized = False
+
+		print 'DIODE'
+		print self.xcenter
+		print self.ycenter
+		print self.angle
+
+	def convert_to_ADR_coordinates(self,diode_coordinates):
+		'''Convert the passed parameters'''
+
+		adr_coordinates = np.dot(diode_coordinates,self.rotation_matrix) + [self.xcenter,self.ycenter]
+
+		return adr_coordinates
 
 class Position_data(threading.Thread):
 	
@@ -82,10 +103,11 @@ class Position_data(threading.Thread):
 
 					if self.record:
 						self.save_data()
-					time.sleep(.01)
+					time.sleep(.001)
 				except:
 					print 'excepting main run thread loop - probably needs to go in to timer event first'
 					time.sleep(.1)
+			time.sleep(.1)
 
 
 
@@ -250,7 +272,7 @@ class Position_data(threading.Thread):
 			#This happens when the overall integer value is >= 128
 			
 			if sync_test_int >= 128:
-				print 'Sync in: ' + str(sync_attempt) + ' attempts'
+				#print 'Sync in: ' + str(sync_attempt) + ' attempts'
 				return sync_test_byte
 			
 			sync_attempt += 1
@@ -303,16 +325,18 @@ class Position_data(threading.Thread):
 				
 				#Dump all the backlog
 				#print self.ser.inWaiting()
-				dump_fudge = 5 #inWaiting() doesn't provide the full buffer size, so need a fudge factor
-				print 'Dump size = ' + str(dump_fudge*32 + self.ser.inWaiting()/32*32)
-				dump = self.ser.read(dump_fudge*32 + self.ser.inWaiting()/32*32)
+				# dump_fudge = 5 #inWaiting() doesn't provide the full buffer size, so need a fudge factor
+				# print 'Dump size = ' + str(dump_fudge*32 + self.ser.inWaiting()/32*32)
+				# dump = self.ser.read(dump_fudge*32 + self.ser.inWaiting()/32*32)
 						
 
 			
 		else:
 			r = np.zeros(8)
-			for k in range(8):
-				r[k] = random.uniform(-3,3)
+			#for k in range(8):
+			#	r[k] = random.uniform(-3,3)
+
+			r[3:5] = random.uniform(-3,3)
 
 			#Update the new data. This is what will get saved to file (since the rest is already written)
 			# if self.new_data_size==1:
@@ -335,7 +359,7 @@ class Position_data(threading.Thread):
 		
 		self.cycle_bit15array = []
 		self.cycle_valuearray = []
-		print "IN WAITING " + str(self.ser.inWaiting())
+		#print "IN WAITING " + str(self.ser.inWaiting())
 		
 		self.cycle31_bytes = self.ser.read(31)
 		#self.cycle_byte.extend(self.cycle31_bytes)
@@ -410,7 +434,7 @@ class Position_data(threading.Thread):
 		# print np.size(self.data_timestamp)
 
 		try:
-			self.save_file.write(str(self.data_timestamp[-1]) + ', ')
+			self.save_file.write(str("%f" % self.data_timestamp[-1]) + ', ')
 			for k in range(8):
 				self.save_file.write(str(self.position[-1,k]))
 				if k < 7:
@@ -438,6 +462,16 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#Give this class access to the data buffer
 		self._buffer = buffer
 
+		#Setup the diodes
+		self.diode1_position = Diode(1,1)
+		self.diode2_position = Diode(-54.03,-205.04)
+		self.diode3_position = Diode(204.46,55.67)
+		self.diode4_position = Diode(3,3)
+
+		#These have the wrong coordinates, but are convenient for testing
+		self.diode2_position = Diode(0,-100)
+		self.diode3_position = Diode(100,0)
+
 		self.retrieved_data = np.zeros((1,8))
 
 		#GUI stuff
@@ -463,11 +497,6 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self._color_wheel = ['k','r','b','g','m']
 		self._color_index = 0
 
-		#Setup the diodes
-		self.diode1 = Diode(0,0)
-		self.diode2 = Diode(1,1)
-		self.diode3 = Diode(2,2)
-		self.diode4 = Diode(3,3)
 
 		#Show the GUI
 		self.main_gui.show()
@@ -632,7 +661,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.livedata_button.setText(QtGui.QApplication.translate("MainWindow", "Live Data", None, QtGui.QApplication.UnicodeUTF8))
 		self.existingdata_button.setText(QtGui.QApplication.translate("MainWindow", "Existing Data", None, QtGui.QApplication.UnicodeUTF8))
 		self.fakedata_button.setText(QtGui.QApplication.translate("MainWindow", "Test Data", None, QtGui.QApplication.UnicodeUTF8))
-		self.recorddata_label.setText(QtGui.QApplication.translate("MainWindow", "Record Data", None, QtGui.QApplication.UnicodeUTF8))
+		self.recorddata_label.setText(QtGui.QApplication.translate("MainWindow", "Play / Record Data", None, QtGui.QApplication.UnicodeUTF8))
 		self.record_button.setToolTip(QtGui.QApplication.translate("MainWindow", "Start / resume recording", None, QtGui.QApplication.UnicodeUTF8))
 		self.filename_box.setText(QtGui.QApplication.translate("MainWindow", "/Users/Oakley/Desktop/deleteme.txt", None, QtGui.QApplication.UnicodeUTF8))
 		self.filename_button.setText(QtGui.QApplication.translate("MainWindow", "Specify Filename", None, QtGui.QApplication.UnicodeUTF8))
@@ -676,7 +705,8 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
 			if not self._data.isAlive():
 				self._data.start()		
-				self.playing = True
+			
+			self.playing = True
 		else:
 			self.statusbar.showMessage("Monitoring Paused")
 
@@ -839,7 +869,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.initialize_grid_values()
 		
 		#Actually plot the grid
-		self.update_grid(0,0,0,'r')
+		self.update_grid('r')
 		
 		self.pixel_map.set_xlim([-10,10])
 		self.pixel_map.set_ylim([-10,10])
@@ -880,7 +910,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.calculate_shift()
 		
 		#Update the pixel grid display plot
-		self.update_grid(random.uniform(-3,3),random.uniform(-3,3),random.uniform(-3,3),'k')
+		self.update_grid('k')
 		
 
 		
@@ -914,6 +944,26 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#self.diode1_plot[0].set_color(spot_color)
 		
 		if self.realtime_plot_checkbox.isChecked():
+
+			#First check and see if the initial location of the laser on the diodes has been set
+			if self.diode1_position.initialized == False:
+				self.diode1_position.xinitial = self.retrieved_data[-1,0]
+				self.diode1_position.yinitial = self.retrieved_data[-1,1]
+				
+				self.diode2_position.xinitial = self.retrieved_data[-1,2]
+				self.diode2_position.yinitial = self.retrieved_data[-1,3]
+				
+				self.diode3_position.xinitial = self.retrieved_data[-1,4]
+				self.diode3_position.yinitial = self.retrieved_data[-1,5]
+				
+				self.diode4_position.xinitial = self.retrieved_data[-1,6]
+				self.diode4_position.yinitial = self.retrieved_data[-1,7]
+
+				self.diode1_position.initialized = True
+				self.diode2_position.initialized = True
+				self.diode3_position.initialized = True
+				self.diode4_position.initialized = True
+
 			#This is the old stuff, before I made seperate threads
 			# self.diode1_plot[0].set_data(self._data.position[:,0], self._data.position[:,1])
 			# self.diode2_plot[0].set_data(self._data.position[:,2], self._data.position[:,3])
@@ -936,11 +986,74 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		pass
 
 
-	def update_grid(self,x,y,angle,color):
+	def update_grid(self,color):
 		'''Plot the pixel grid'''
 				
-		self.rotation_matrix = [[math.cos(angle),-math.sin(angle)],[math.sin(angle),math.cos(angle)]]
+		if not color=='r':
+			#Attempt number 1 for calculating pixel grid shift. This will only be an approximation.
+			#I'll calculate how much the angle has changed between the two verical diodes. This will give me the rotation of the dewar.
+			#From this I'll calculate the new location of the lasers based just on the rotation
+			#Next I'll calculate the lateral shift that must be occuring in addition to this
 
+
+			# #Not sure about the sign on these. Might need to add some of them....
+			# diode2_xshift = self.retrieved_data[-1,2] - self.diode2_position.xinitial
+			# diode2_yshift = self.retrieved_data[-1,3] - self.diode2_position.yinitial
+
+			# diode3_xshift = self.retrieved_data[-1,4] - self.diode3_position.xinitial
+			# diode3_yshift = self.retrieved_data[-1,5] - self.diode3_position.yinitial
+
+
+			# print diode2_xshift, diode2_yshift
+
+			# #New position of the laser spot in ADR reference frame
+			# diode2_xnew = self.diode2_position.xcenter + diode2_xshift
+			# diode2_ynew = self.diode2_position.ycenter + diode2_yshift
+
+			# diode3_xnew = self.diode3_position.xcenter + diode3_xshift
+			# diode3_ynew = self.diode3_position.ycenter + diode3_yshift
+
+			diode2_new = self.diode2_position.convert_to_ADR_coordinates([self.retrieved_data[-1,2],self.retrieved_data[-1,3]])
+			diode3_new = self.diode3_position.convert_to_ADR_coordinates([self.retrieved_data[-1,4],self.retrieved_data[-1,5]])
+
+			vector_original = np.array([(self.diode3_position.xcenter - self.diode2_position.xcenter), (self.diode3_position.ycenter - self.diode2_position.ycenter)])
+			vector_current = np.array([(diode3_new[0] - diode2_new[0]), (diode3_new[1] - diode2_new[1])])
+
+			try:
+				angle_shift = np.arccos(np.dot(vector_original, vector_current) / (np.sqrt(vector_original.dot(vector_original)) * np.sqrt(vector_current.dot(vector_current))))
+			except:
+				print 'problem with determining angle shift'
+				print (np.dot(vector_original, vector_current) / (np.sqrt(vector_original.dot(vector_original)) * np.sqrt(vector_original.dot(vector_original))))
+
+
+
+
+			self.rotation_matrix = [[math.cos(angle_shift),-math.sin(angle_shift)],[math.sin(angle_shift),math.cos(angle_shift)]]
+
+			diode2_rotated = np.dot([self.diode2_position.xcenter,self.diode2_position.ycenter],self.rotation_matrix)
+
+			dewar_shift = (diode2_rotated[0] - diode2_new[0], diode2_rotated[1] - diode2_new[1])
+			print 'diode 2'
+			print 'initial laser position (diode frame):    ', self.diode2_position.xinitial,self.diode2_position.yinitial
+			print 'Current laser position (diode frame):    ', self.retrieved_data[-1,2],self.retrieved_data[-1,3]
+			print 'initial laser position (ADR frame):      ', self.diode2_position.xcenter, self.diode2_position.ycenter
+			print 'Current laser position (ADR frame):      ', diode2_new
+			print 'Initial vector:                          ', vector_original
+			print 'Current vector:                          ', vector_current
+			print 'Current angle change of dewar (degrees): ', angle_shift * 57.3
+			print 'Rotation Matrix:                         ', self.rotation_matrix
+			print 'Diode 2 rotated:                         ', diode2_rotated
+			print 'Dewar shift (mm):                        ', dewar_shift
+
+		else:
+			dewar_shift = [0,0]
+			angle_shift = 0
+			self.rotation_matrix = [[math.cos(angle_shift),-math.sin(angle_shift)],[math.sin(angle_shift),math.cos(angle_shift)]]
+
+
+
+
+		#Now we remake the grid with this information:
 		self.xgrid_new = []
 		self.ygrid_new = []
 
@@ -951,8 +1064,9 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		new_pairs = np.dot(original_pairs,self.rotation_matrix)
 
 		#Break it back up into individual arrays for plotting
-		self.xgrid_new = new_pairs[:,0] + x
-		self.ygrid_new = new_pairs[:,1] + y
+		self.xgrid_new = new_pairs[:,0] + dewar_shift[0]
+		self.ygrid_new = new_pairs[:,1] + dewar_shift[1]
+
 		
 		if self.realtime_plot_checkbox.isChecked():
 			
