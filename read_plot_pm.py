@@ -333,10 +333,13 @@ class Position_data(threading.Thread):
 			
 		else:
 			r = np.zeros(8)
-			#for k in range(8):
-			#	r[k] = random.uniform(-3,3)
+			
+			#All random
+			for k in range(8):
+				r[k] = random.uniform(-3,3)
 
-			r[3:5] = random.uniform(-3,3)
+			#Testing out pixel map stuff - so only some spots move.
+			#r[3:5] = random.uniform(-3,3)
 
 			#Update the new data. This is what will get saved to file (since the rest is already written)
 			# if self.new_data_size==1:
@@ -456,6 +459,9 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.ts_old = time.time()
 		self.ts = time.time()
 
+		#Keeps track of how many images you've made
+		self.image_counter = 0
+		
 		#Give this class access to the serial data class
 		self._data = data
 
@@ -538,6 +544,8 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.verticalLayout.addWidget(self.livedata_button)
 		self.existingdata_button = QtGui.QRadioButton(self.widget)
 		self.existingdata_button.setObjectName(_fromUtf8("existingdata_button"))
+		#Gray this out for now. Not going to have this software playback data at the moment.
+		self.existingdata_button.setEnabled(False)
 		self.verticalLayout.addWidget(self.existingdata_button)
 		self.fakedata_button = QtGui.QRadioButton(self.widget)
 		self.fakedata_button.setChecked(False)
@@ -584,6 +592,9 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.record_button.setObjectName(_fromUtf8("record_button"))
 		self.horizontalLayout.addWidget(self.record_button)
 		self.verticalLayout_2.addLayout(self.horizontalLayout)
+		self.save_images_checkbox = QtGui.QCheckBox("Save Images", self.widget)
+		self.save_images_checkbox.setChecked(True)
+		self.verticalLayout_2.addWidget(self.save_images_checkbox)
 		self.filename_box = QtGui.QLineEdit(self.widget)
 		self.filename_box.setObjectName(_fromUtf8("filename_box"))
 		self.verticalLayout_2.addWidget(self.filename_box)
@@ -912,7 +923,9 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#Update the pixel grid display plot
 		self.update_grid('k')
 		
-
+		#Check and see if we're supposed to be saving images as we go. If so then run that function
+		if (self._data.record == True) and (self.save_images_checkbox.isChecked()):
+			self.save_plot_images()
 		
 	def update_diodes(self):
 		'''Update the diode maps'''
@@ -1076,7 +1089,13 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			
 			#Plot the two grids
 			self.canvas2.draw()
-		
+	def save_plot_images(self):
+		self.image_counter += 1
+
+		#Something in here isn't playing nice with strings, so I add them up and re-convert the whole thing to make it happy.
+		figure_filename = str(self.save_filename[0:-4]+'_diode_spots'+str(self.image_counter)+'.png')
+		self.fig1.savefig(figure_filename,format='png')
+
 	def retrieve_queue(self):
  		read_counter = np.size(self._data.x1_position)
  		
