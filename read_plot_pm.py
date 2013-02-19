@@ -49,11 +49,6 @@ class Diode():
 
 		self.initialized = False
 
-		print 'DIODE'
-		print self.xcenter
-		print self.ycenter
-		print self.angle
-
 	def convert_to_ADR_coordinates(self,diode_coordinates):
 		'''Convert the passed parameters'''
 
@@ -464,7 +459,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		
 		#Give this class access to the serial data class
 		self._data = data
-
+		
 		#Give this class access to the data buffer
 		self._buffer = buffer
 
@@ -493,6 +488,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		self.playing = False
 		self.retranslateUi(self.main_gui)
 		QtCore.QMetaObject.connectSlotsByName(self.main_gui)
+
 
 		#Define the plot timer that updates the diodes / map
 		self._timer = self.fig1.canvas.new_timer()
@@ -702,6 +698,10 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
 	def startstop(self):
 		'''Start or stop the data taking'''
+
+		#Determine whether data should be real or fake
+		self._data.fake_data = self.fakedata_button.isChecked()
+
 		if self.playing == False:
 			if self._data.record == False:
 				self.statusbar.showMessage("Monitoring Diodes")
@@ -930,9 +930,6 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 	def update_diodes(self):
 		'''Update the diode maps'''
 
-
-		#Determine whether data should be real or fake
-		self._data.fake_data = self.fakedata_button.isChecked()
 		#This is sort of weird way to find the selected port. Other methods seem to fail though
 		#The port will be auto-selected, but doesn't react the same as user-selected.
 		#Weird
@@ -1046,17 +1043,19 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			diode2_rotated = np.dot([self.diode2_position.xcenter,self.diode2_position.ycenter],self.rotation_matrix)
 
 			dewar_shift = (diode2_rotated[0] - diode2_new[0], diode2_rotated[1] - diode2_new[1])
-			print 'diode 2'
-			print 'initial laser position (diode frame):    ', self.diode2_position.xinitial,self.diode2_position.yinitial
-			print 'Current laser position (diode frame):    ', self.retrieved_data[-1,2],self.retrieved_data[-1,3]
-			print 'initial laser position (ADR frame):      ', self.diode2_position.xcenter, self.diode2_position.ycenter
-			print 'Current laser position (ADR frame):      ', diode2_new
-			print 'Initial vector:                          ', vector_original
-			print 'Current vector:                          ', vector_current
-			print 'Current angle change of dewar (degrees): ', angle_shift * 57.3
-			print 'Rotation Matrix:                         ', self.rotation_matrix
-			print 'Diode 2 rotated:                         ', diode2_rotated
-			print 'Dewar shift (mm):                        ', dewar_shift
+			
+			#Diagnostics output
+# 			print 'diode 2'
+# 			print 'initial laser position (diode frame):    ', self.diode2_position.xinitial,self.diode2_position.yinitial
+# 			print 'Current laser position (diode frame):    ', self.retrieved_data[-1,2],self.retrieved_data[-1,3]
+# 			print 'initial laser position (ADR frame):      ', self.diode2_position.xcenter, self.diode2_position.ycenter
+# 			print 'Current laser position (ADR frame):      ', diode2_new
+# 			print 'Initial vector:                          ', vector_original
+# 			print 'Current vector:                          ', vector_current
+# 			print 'Current angle change of dewar (degrees): ', angle_shift * 57.3
+# 			print 'Rotation Matrix:                         ', self.rotation_matrix
+# 			print 'Diode 2 rotated:                         ', diode2_rotated
+# 			print 'Dewar shift (mm):                        ', dewar_shift
 
 		else:
 			dewar_shift = [0,0]
