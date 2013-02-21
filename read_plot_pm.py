@@ -1,6 +1,21 @@
+#Position Monitor Program 
 
-#python -m serial.tools.miniterm --port='/dev/tty.usbserial-FTT3QDXK' --baud=115200
-#python -m serial.tools.miniterm --port='/dev/tty.SLAB_USBtoUART' --baud=115200
+#Takes data from the Micro-X Position Monitor system, saves it to a text file, plots it real time and saves images for later playback
+
+#BUGS / FEATURES TO BE ADDED / ETC
+#1) Sometimes when the laser is near the edge of the diode I get 0 values which freaks everything out. Not sure if that's a hardware
+#issue or something else
+
+#2) Didoes that aren't plugged in sometimes get noisy (probably related to item #1). I think this is just a hardware thing. Will likely
+#not be an issue when all 4 diodes are plugged initialize_data
+
+#3) Still having some trouble getting everything exactly "real-time". There seems to be a secondary buffer on either the board itself,
+# or the serial - usb converter. So I have trouble emptying that queue so the data is fresh when the play button is started. Right now 
+# I'm dumping the data twice - and that seems to work. It's a bit kludgy though. Once data is being "played" I don't dump anything
+# so I think this current code is okay - just a bit kludgy.
+
+#4) The pixel map calculation is just an approximation. And I can't fully test it until the dewar is assembled. Would be nice to have a 
+# non-approximation, but that's low-priority I think. Could even be done after launch....
 
 import numpy as np
 
@@ -71,12 +86,6 @@ class Position_data(threading.Thread):
 		self.initialize_data()
 		self.num_records = 0
 		self.connected_to_usb = False
-		
-		#THIS IS TEMPORARY - MAKE SURE TO DELETE THIS.
-		#RIGHT NOW THIS THREAD STARTS BEFORE IT KNOWS WHETHTER THE DATA IS FAKE OR NOT
-		#THAT DETERMINATION DOESN'T HAPPEN UNTIL THE MATPLOTLIB TIMER LOOP OCCURS
-		#NEED TO FIX THIS
-		self.fake_data = False
 
 		self.record = False
 
@@ -88,20 +97,24 @@ class Position_data(threading.Thread):
 		while(True):
 			while (self.store_data == True):
 
-				try:
+				#try:
+					#print 'about to read cycle'
 					self.read_cycle()
 
+					#print 'about to move data to buffer'
 					#timestart = time.time()
 					self.move_data_to_buffer()
 					#timeend = time.time()
 					#print 'putting time ' + str(timeend-timestart)
 
+					#print 'about to record'
 					if self.record:
 						self.save_data()
 					time.sleep(.001)
-				except:
-					print 'excepting main run thread loop - probably needs to go in to timer event first'
-					time.sleep(.1)
+				# except:
+# 					print "Unexpected error:", sys.exc_info()[0]
+# 					print 'excepting main run thread loop - probably needs to go in to timer event first'
+# 					time.sleep(.1)
 			time.sleep(.1)
 
 
@@ -289,8 +302,8 @@ class Position_data(threading.Thread):
 			   
 			if self.connected_to_usb == False:
 				self.connect_to_usb()
-			
-			
+				while self.ser.inWaiting() != 0:			
+					dump = self.ser.read(self.ser.inWaiting()*5)
 			
 			if self.connected_to_usb == True:
 				#Dump all the backlog
@@ -492,10 +505,10 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 
 		#Define the plot timer that updates the diodes / map
 		self._timer = self.fig1.canvas.new_timer()
-		self._timer.interval = 110
+		self._timer.interval = 100
 		self._timer.add_callback(self.update_display)
 
-		#Color stuff (doesn't work right now)
+		#Color stuff
 		self._color_wheel = ['k','r','b','g','m']
 		self._color_index = 0
 
@@ -654,7 +667,7 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		# self.menubar.addAction(self.menuFile.menuAction())
 
 		#Connect actions with the functions they call
-	    #QtCore.QObject.connect(self.actionEmergency_Save_All, QtCore.SIGNAL(_fromUtf8("triggered()")), self.emergency_save)
+	    	#QtCore.QObject.connect(self.actionEmergency_Save_All, QtCore.SIGNAL(_fromUtf8("triggered()")), self.emergency_save)
 		QtCore.QObject.connect(self.play_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.startstop)
 		QtCore.QObject.connect(self.record_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.record)
 		QtCore.QObject.connect(self.filename_button, QtCore.SIGNAL(_fromUtf8("clicked()")), self.specify_filename)
@@ -702,11 +715,26 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		#Determine whether data should be real or fake
 		self._data.fake_data = self.fakedata_button.isChecked()
 
+		#This is sort of weird way to find the selected port. Other methods seem to fail though
+		#The port will be auto-selected, but doesn't react the same as user-selected.
+		#Weird
+		selected_ports = self.listWidget.selectedItems()
+		self._data.port = str(selected_ports[0].text())
+
+
 		if self.playing == False:
 			if self._data.record == False:
 				self.statusbar.showMessage("Monitoring Diodes")
 			else:
 				self.statusbar.showMessage("Monitoring Diodes - Recording data to: " + self.save_filename)
+
+			if self._data.connected_to_usb == True:
+			
+				#This dumps all the data collected while the user wasn't actively playing/recording data.
+				#It's kind of kludgy at the moment, but without this you have to play through the 
+				#"non-recorded" data before getting to the real-time stuff
+				while self._data.ser.inWaiting() != 0:			
+					dump = self._data.ser.read(self._data.ser.inWaiting()*5)
 
 			#Start the plotting timer
 			self._timer.start()
@@ -729,13 +757,17 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 			self._data.store_data = False
 			
 	def change_record_speed(self):
-		'''Change the speed of the data taking depending on if plots are generated'''
+		'''Change the speed of the data taking depending on if plots are generated'''\
+		
+		#Now that I'm using multiple threads I don't think there's any need for 2 speeds
+		#Leaving this in for now though.
+		
 		if self.realtime_plot_checkbox.isChecked():
 			#Slow speed so the plots have time to draw
-			self._timer.interval = 110
+			self._timer.interval = 100
 		else:
 			#Fast speed since there's no need for plotting
-			self._timer.interval = 110#11
+			self._timer.interval = 100
 	
 	def clear_plot(self):
 		'''Clear the plots'''
@@ -929,12 +961,6 @@ class Position_plots(QtGui.QMainWindow, FigureCanvas):
 		
 	def update_diodes(self):
 		'''Update the diode maps'''
-
-		#This is sort of weird way to find the selected port. Other methods seem to fail though
-		#The port will be auto-selected, but doesn't react the same as user-selected.
-		#Weird
-		selected_ports = self.listWidget.selectedItems()
-		self._data.port = str(selected_ports[0].text())
 		
 		#Obtain data from the queue
 		self.retrieve_queue()
